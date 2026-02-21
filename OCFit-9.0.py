@@ -69,38 +69,42 @@ def transforma_para_float(array):
     return saida
 ##########################################################################################
 plt.close('all')
+
 ############################################################################
-# setar diretorios
-base_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/CE_IsoFit/'
+# Define working directories
+
+base_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/CE_isofit/'
 #fit_dir = base_dir+'OCFit/'
 memb_dir = base_dir+'dados/'
 dirout = base_dir+'results/' 
 logfilename = 'log-results.txt'
+
 ############################################################################
 #cria diretorio results
 try:
     os.stat(dirout)
 except:
     os.mkdir(dirout)  
+    
 ###########################################################################
 # Get Apogee data from disk
 apogee = np.load(base_dir+'APOGEE-Metalicity-table.npy')
+
 ############################################################################
 # Get Netopil data from disk
 netopil = np.load(base_dir+'Netopil16-Metalicity-table.npy')
 #netopil['Cluster'] = np.array([x.decode().replace(" ", "_") for x in netopil['Cluster']])
 netopil['Cluster'] = np.array([x.replace(" ", "_") for x in netopil['Cluster']])
+
 ############################################################################
-# verifica se ja foi rodado
+# Check which clusters have been fit already
 catlist = np.genfromtxt(dirout+'log-results.txt',dtype=None,delimiter=';',names=True)
 catlist['name'] = np.array([x.strip() for x in catlist['name']])
 good_OCs = catlist['name'].astype(str) # para escrever os nomes em str
+
 ############################################################################
-# serve apenas para escrever o header. nao e necessario quando usado o arquivo log-results.txt no dir results
-#logfile = open(dirout+logfilename, "a+")
-#logfile.write('name;                    RA_ICRS ;   DE_ICRS;        R;     dist;  e_dist;     age;   e_age;     FeH;   e_FeH;      Av;    e_Av;      Nc       \n')
-#logfile.close
-############################################################################
+# Start fitting pipeline
+
 # set membership files that will be fit sorted by size
 files = [f for f in sorted(glob.glob(memb_dir + "*.dat", recursive=True),key=os.path.getsize)]
 

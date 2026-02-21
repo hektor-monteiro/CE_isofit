@@ -23,7 +23,7 @@ from astropy.modeling import models, fitting
 from astropy.coordinates import SkyCoord
 from astropy import wcs
 from astropy.coordinates import Angle
-from oc_tools_padova_edr3 import *
+from oc_tools_padova_dr3 import *
 from matplotlib.offsetbox import AnchoredOffsetbox, AuxTransformBox, VPacker,TextArea, DrawingArea
 import corner
 import emcee
