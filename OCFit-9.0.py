@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -32,8 +32,8 @@ import multiprocessing as mp
 import astropy.units as u
 import warnings
 import astropy.coordinates as coord
-from oc_tools_padova_edr3 import *
-from gaia_edr3_tools import *
+from oc_tools_padova_dr3 import *
+from gaia_dr3_tools import *
 import glob
 import os
 import statistics
