@@ -682,7 +682,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
             data_boot_er = obs_oc_er
             weight_boot = weight
             
-        res[n,:] = run_isoc_CE(lnlikelihoodCE,data_boot,data_boot_er,filters,refmag,prange,
+        res[n,:],res_lik[n] = run_isoc_CE(lnlikelihoodCE,data_boot,data_boot_er,filters,refmag,prange,
            sample,itmax,band,alpha,tol,weight_boot,prior,seed,mp.cpu_count()-1,guess)
         
         verbosefile.write('   '.join('%6.3f' % v for v in res[n,:])+'\n')
@@ -816,7 +816,7 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
 
 #        print 'Best solution'
     print ('     '.join('%0.3f' % v for v in pars_best), "{0:0.2f}".format(lik_best), iter, "{0:0.5f}".format(avg_var))    
-    return pars_best
+    return pars_best, lik_best
     
 #    print ('     '.join('%0.3f' % v for v in center[:,iter-1]), "{0:0.2f}".format(lik_best), iter, "{0:0.5f}".format(avg_var))    
 #    return center[:,iter-1]
