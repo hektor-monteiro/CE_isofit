@@ -23,7 +23,7 @@ from astropy.modeling import models, fitting
 from astropy.coordinates import SkyCoord
 from astropy import wcs
 from astropy.coordinates import Angle
-from oc_tools_padova_edr3 import *
+from oc_tools_padova_dr3 import *
 from matplotlib.offsetbox import AnchoredOffsetbox, AuxTransformBox, VPacker,TextArea, DrawingArea
 import corner
 import emcee
@@ -605,7 +605,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
         
     ###########################################################################
     # load full isochrone grid data and arrays of unique Age and Z values
-    grid_dir = '/home/wilton/ISO-FIT/'
+    grid_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/grids/'
     mod_grid, age_grid, z_grid = load_mod_grid(grid_dir, isoc_set='GAIA_eDR3')
     filters = ['G_BPmag','G_RPmag']
     refmag = 'G_BPmag'
@@ -656,6 +656,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
     tol = 1.e-3
 
     res = np.zeros([nruns,ndim])
+    res_lik = np.zeros([nruns])
     
     # start main loop of the method
     print ('----------------------------------------------------------------------')
@@ -682,7 +683,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
             data_boot_er = obs_oc_er
             weight_boot = weight
             
-        res[n,:] = run_isoc_CE(lnlikelihoodCE,data_boot,data_boot_er,filters,refmag,prange,
+        res[n,:],res_lik[n] = run_isoc_CE(lnlikelihoodCE,data_boot,data_boot_er,filters,refmag,prange,
            sample,itmax,band,alpha,tol,weight_boot,prior,seed,mp.cpu_count()-1,guess)
         
         verbosefile.write('   '.join('%6.3f' % v for v in res[n,:])+'\n')
@@ -707,7 +708,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
     verbosefile.write('\n')    
     verbosefile.write('Finished isochrone fitting...\n')
 
-    return np.median(res,axis=0),res.std(axis=0)
+    return np.median(res,axis=0),res.std(axis=0), np.median(res_lik), np.std(res_lik), np.percentile(res_lik, 16), np.percentile(res_lik, 84)
 #    return res[nruns-1,:],res.std(axis=0)
         
 ##############################################################################
@@ -816,264 +817,80 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
 
 #        print 'Best solution'
     print ('     '.join('%0.3f' % v for v in pars_best), "{0:0.2f}".format(lik_best), iter, "{0:0.5f}".format(avg_var))    
-    return pars_best
+    return pars_best, lik_best
     
 #    print ('     '.join('%0.3f' % v for v in center[:,iter-1]), "{0:0.2f}".format(lik_best), iter, "{0:0.5f}".format(avg_var))    
 #    return center[:,iter-1]
 ##########################################################################################
-# Fit isochrones
     
-def fit_isochrone_mcmc(obs_file, nwalkers, burn_in, nsteps, thin, guess=False,magcut=17.0):
-    seed = np.random.randint(2**25,2**30)
-    print ('-------------------------------------------------------------')
-    print ('Starting MCMC fitting...')
-    print ('-------------------------------------------------------------')
-    
-    obs = np.genfromtxt(obs_file,names=True)
-    
-    #remove nans
-    cond1 = np.isfinite(obs['Gmag'])
-    cond2 = np.isfinite(obs['BPmag'])
-    cond3 = np.isfinite(obs['RPmag'])
-    cond4 = obs['Gmag'] < magcut
-    
-    ind  = np.where(cond1&cond2&cond3&cond4)
-    
-    obs = obs[ind]
-
-    obs_oc = np.copy(obs[['Gmag','BPmag','RPmag']])
-    obs_oc.dtype.names=['Gmag','G_BPmag','G_RPmag']
-    obs_oc_er = np.copy(obs[['e_Gmag','e_BPmag','e_RPmag']])
-    obs_oc_er.dtype.names=['Gmag','G_BPmag','G_RPmag']
-    weight = obs['P'] * obs_oc['Gmag'].min()/obs_oc['Gmag']
-    
-
-    # load full isochrone grid data and arrays of unique Age and Z values
-    grid_dir = './grids/'
-    mod_grid, age_grid, z_grid = load_mod_grid(grid_dir, isoc_set='MIST-GAIA')
-    filters = ['Gmag','G_BPmag','G_RPmag']
-    refmag = 'Gmag'
-    
-    labels=['age', 'dist', 'met', 'Ebv', 'Rv','bin', 'alpha']
-    
-    prange = np.array([[6.5,10.3],
-                       [0.1,10.],
-                       [2e-06,0.048],
-                       [0.1,2.0],
-                       [2,4.],
-                       [0.,0.8],
-                       [1.5,3.5]])
-            
-            
-    ndim = prange.shape[0]
-
-    midpoint = (prange[:,1]-prange[:,0])/2.+prange[:,0]
-    ndim = prange.shape[0]
-
-    # define uniformly distributed walker starting positions
-    pos=[]
-    lik=[]
-    for i in range(nwalkers):
-        pars = []
-        for k in range(ndim):
-            pars.append(np.random.uniform(prange[k,0],prange[k,1]))
-        pos.append(np.array(pars))
-        lik.append(lnlikelihood(pars,obs_oc,obs_oc_er,filters,refmag,prange,weight))
-
-    # If there is initial guess generate walkers around it
-#    scale=(prange[:,1]-prange[:,0])/10.
-#    if guess:
-#        pos = [guess + scale*np.random.randn(ndim) for i in range(nwalkers)]
-        
-    start_time = timeit.default_timer()
-
-    # setup sampler
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlikelihood,a=1.1,
-                                    args=(obs_oc,obs_oc_er,filters,refmag,prange,weight), 
-                                    threads=mp.cpu_count()-1,live_dangerously=True)
-    # run sampler in the burn in phase
-    sampler.run_mcmc(pos, burn_in)
-    
-    # process samples
-    samples = sampler.chain[:,:, :].reshape((-1, ndim))
-    
-    # get best values and confidence intervals
-    best_vals = np.array(map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                 zip(*np.percentile(samples, [15, 50, 84],
-                                                    axis=0))))
-    
-    # get best solution from maximul likelihood sampled
-    
-    best_sol = sampler.flatchain[sampler.flatlnprobability.argmax()]
-    
-    # reset sampler
-    sampler.reset()
-    
-    # setup sampler after burn-in
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnlikelihood,a=1.1,
-                                    args=(obs_oc,obs_oc_er,filters,refmag,prange,weight,seed), 
-                                    threads=mp.cpu_count()-1,live_dangerously=True)
-    
-    print ('done burn in phase...')
-    print ('')
-    print ('Best solution of burn in phase: ', best_sol)
-    print ('Average solution of burn in phase: ',best_vals[:,0])
-    
-    # redefine initial positions based on burn in results
-#    scale = 0.01*best_vals[:,0]
-#    pos = [best_vals[:,0] + scale*np.random.randn(ndim) for i in range(nwalkers)]
-    
-    # run sampler for final sample
-    sampler.run_mcmc(pos, nsteps, thin=thin)
-    
-    # get final best solution    
-    best_sol = sampler.flatchain[sampler.flatlnprobability.argmax()]
-    
-    print ('Finished sampling')
-    
-    samples = sampler.chain[:,nsteps/2/thin:, :].reshape((-1, ndim))
-    best_vals = np.array(map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),
-                                 zip(*np.percentile(samples, [5, 50, 95],
-                                                    axis=0))))
-    
-    print("Mean acceptance fraction: {0:.3f}"
-                    .format(np.mean(sampler.acceptance_fraction)))
-    
-    print ('Elapsed time: ', (timeit.default_timer() - start_time)/60., ' minutes')
-
-
-    ###############################################################
-    # print results
-    
-    fig = corner.corner(samples, labels=labels, levels=(0.68,0.95), smooth=True)
-    
-    for i in range(ndim):
-        print (labels[i],best_sol[i],'-',best_vals[i,1],'+',best_vals[i,2])
-    
-    print ('')
-    print ('From sample averages:')
-    for i in range(ndim):
-        print (labels[i],best_vals[i,0],'-',best_vals[i,1],'+',best_vals[i,2])
-        
-        
-    # plot chains
-    fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-    samples = sampler.chain
-    for i in range(ndim):
-        ax = axes[i]
-        for k in range(nwalkers):
-            ax.plot(np.array(samples[k,:, i]), "k", alpha=0.1)
-        ax.set_ylabel(labels[i])
-    
-    # plot averages
-    fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=True)
-    for i in range(ndim):
-        ax = axes[i]
-        for k in range(nwalkers):
-            avgs = np.cumsum(np.array(samples[k,:, i]))/(np.arange(len(samples[k,:, i]))+1)        
-            ax.plot(avgs, "k", alpha=0.1)
-        ax.set_ylabel(labels[i])
-    
-
-    print ('-------------------------------------------------------------')
-    print (' Final result')
-    print ('-------------------------------------------------------------')
-    print ('   '.join('%0.3f' % v for v in best_vals[:,1]))
-    print ('   '.join('%0.3f' % v for v in (best_vals[:,1]+best_vals[:,2])/3))
-
-    return best_sol, (best_vals[:,1]+best_vals[:,2])/3
-
-
-##########################################################################################
-# Fit isochrones
-    
-def fit_CCD(obs_file,guess=False,magcut=17.0):
-    
-    from scipy.optimize import differential_evolution
-    
-    print ('Starting CCD fitting...')
-    
-    obs = np.genfromtxt(obs_file,names=True)
-    
-    #remove nans
-    cond1 = np.isfinite(obs['Gmag'])
-    cond2 = np.isfinite(obs['BPmag'])
-    cond3 = np.isfinite(obs['RPmag'])
-    cond4 = obs['Gmag'] < magcut
-    
-    
-    ind  = np.where(cond1&cond2&cond3&cond4)
-    
-    obs = obs[ind]
-
-    obs_oc = np.copy(obs[['Gmag','BPmag','RPmag']])
-    obs_oc.dtype.names=['Gmag','G_BPmag','G_RPmag']
-    obs_oc_er = np.copy(obs[['e_Gmag','e_BPmag','e_RPmag']])
-    obs_oc_er.dtype.names=['Gmag','G_BPmag','G_RPmag']
-    weight = obs['P'] #* obs_oc['Gmag'].min()/obs_oc['Gmag']
-    
-
-    # load full isochrone grid data and arrays of unique Age and Z values
-    grid_dir = './grids/'
-    mod_grid, age_grid, z_grid = load_mod_grid(grid_dir, isoc_set='GAIA')
-    filters = ['Gmag','G_BPmag','G_RPmag']
-    refmag = 'G_BPmag'
-        
-    prange = np.array([(6.6,10.1),
-                       (.1,10.),
-                       (-0.9,0.7),
-                       (0.001,6.0)])
-
-    midpoint = (prange[:,1]-prange[:,0])/2.+prange[:,0]
-    ndim = prange.shape[0]
-
-    # define CE tweak parameters
-    nruns = 5
-    itmax = 100    
-    sample = 500
-
-    band = 0.15
-    alpha = 0.1
-    tol = 1.e-3
-
-    res = np.zeros([nruns,ndim])
-    
-    # start main loop of the method
-    print ('----------------------------------')
-    print ('Age       Dist.       Met.      Av')
-    print ('-----------------------------------')
-    
-    
-    for n in range(nruns):
-        # set seed for the run
-        seed = np.random.randint(2**20,2**30)
-        
-        result = differential_evolution(lnlikelihoodCE, prange, 
-                                        args=(obs_oc,obs_oc_er,filters,refmag,prange,weight,seed))
-
-        res[n,:] = result.x
-       
-    print ('')
-    print ('-------------------------------------------------------------')
-    print (' Final result')
-    print ('-------------------------------------------------------------')
-    print ('   '.join('%0.3f' % v for v in np.median(res,axis=0)))
-    print ('   '.join('%0.3f' % v for v in res.std(axis=0)))
-    print ('')
-    
-    print ('Finished isochrone fitting...')
-
-    return np.median(res,axis=0),res.std(axis=0)
-        
 ##############################################################################
-
-
-
-
-
-
-
-
+def calcula_correlacao_ICxmag(Gmagv,BRmag):
+    """
+    Função que calcula a correlação entre o índice de cor e magnitude para dados de estrela selecionados.
+    
+    Parâmetros:
+    - data_selecionado: Dados das estrelas selecionadas contendo as colunas 'Gmag' e 'BP-RP'.
+    - data_filtrado_all: Todos os dados filtrados das estrelas, usados para selecionar uma amostra aleatória.
+    - nstars: Número de estrelas a serem selecionadas aleatoriamente. Padrão é 1000.
+    - box: Tamanho do bin para calcular a mediana e o desvio padrão. Padrão é 0.50.
+    
+    Retorna:
+    - res_field: Correlação de Pearson para o campo (membros do aglomerado aberto).
+    - res_all: Correlação de Pearson para todos os dados (incluindo membros do aglomerado e não membros).
+    """
+    ###########################################################################
+    import numpy as np
+    import scipy.stats as stats 
+    ###########################################################################
+    
+    Gmagv_oc = Gmagv
+    BRmag_oc = BRmag
+    
+    box = 0.50 # tamnho do bin
+    magbins = np.linspace(Gmagv_oc.min(),Gmagv_oc.max(),int((Gmagv_oc.max()-Gmagv_oc.min())/box))
+    colorbins_oc_median = magbins*0.
+    dcolor_oc_std = magbins*0.
+    colorbins_f_median = magbins*0.
+    dcolor_f_std = magbins*0.
+    
+    for k in range(magbins.size):
+        colorbins_oc_median[k] = np.nanmedian(BRmag_oc[np.abs(Gmagv_oc-magbins[k]) < box])
+        dcolor_oc_std[k] = np.nanstd(BRmag_oc[np.abs(Gmagv_oc-magbins[k]) < box])
+       
+        #print(magbins[k], '   ', colorbins_oc_median[k], '   ', dcolor_oc_std[k]) 
+    
+    # retira bins com nan xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    cond13 = np.isfinite(colorbins_oc_median)
+    cond14 = np.isfinite(colorbins_f_median)
+    indice_sem_nan = np.where(cond13&cond14)
+    magbins = magbins[indice_sem_nan]
+    colorbins_oc_median = colorbins_oc_median[indice_sem_nan]
+    dcolor_oc_std = dcolor_oc_std[indice_sem_nan]
+     
+    # retira bins com nan xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    
+    
+    ##################################################################################################
+    #retira as gigantes:
+    ind_max_colorbins_median = (colorbins_oc_median == np.nanmax(colorbins_oc_median))
+    ind_min_colorbins_median = (colorbins_oc_median == np.nanmin(colorbins_oc_median))
+    mag_GV_min = magbins[ind_max_colorbins_median][0]
+    mag_GV_max = magbins[ind_min_colorbins_median][0] 
+    cond1_GV = BRmag_oc >= np.nanmin(colorbins_oc_median)   
+    cond2_GV = Gmagv_oc <=  mag_GV_max#    (np.nanmax(Gmagv_oc) - np.nanmin(Gmagv_oc))/2.
+    indice_GV = np.where(cond1_GV&cond2_GV)
+    indice_GV_SP = np.where(~(cond1_GV&cond2_GV))
+    BRmag_oc_sp = BRmag_oc[indice_GV_SP]
+    Gmagv_oc_sp = Gmagv_oc[indice_GV_SP]
+    N_sp = len(Gmagv_oc[indice_GV_SP])
+    ##################################################################################################  
+    #calcula correlacao entre IC e mag
+    try:
+        res = stats.pearsonr(BRmag_oc_sp, Gmagv_oc_sp)
+        return res, N_sp
+    except Exception:
+        res = [9.99,9.99]
+        return res, N_sp
+        
 
 
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -32,8 +32,8 @@ import multiprocessing as mp
 import astropy.units as u
 import warnings
 import astropy.coordinates as coord
-from oc_tools_padova_edr3 import *
-from gaia_edr3_tools import *
+from oc_tools_padova_dr3 import *
+from gaia_dr3_tools import *
 import glob
 import os
 import statistics
@@ -69,40 +69,44 @@ def transforma_para_float(array):
     return saida
 ##########################################################################################
 plt.close('all')
+
 ############################################################################
-# setar diretorios
-base_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/CE_IsoFit/'
+# Define working directories
+
+base_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/CE_isofit/'
 #fit_dir = base_dir+'OCFit/'
 memb_dir = base_dir+'dados/'
 dirout = base_dir+'results/' 
 logfilename = 'log-results.txt'
+
 ############################################################################
 #cria diretorio results
 try:
     os.stat(dirout)
 except:
     os.mkdir(dirout)  
+    
 ###########################################################################
 # Get Apogee data from disk
 apogee = np.load(base_dir+'APOGEE-Metalicity-table.npy')
+
 ############################################################################
 # Get Netopil data from disk
 netopil = np.load(base_dir+'Netopil16-Metalicity-table.npy')
 #netopil['Cluster'] = np.array([x.decode().replace(" ", "_") for x in netopil['Cluster']])
 netopil['Cluster'] = np.array([x.replace(" ", "_") for x in netopil['Cluster']])
+
 ############################################################################
-# verifica se ja foi rodado
+# Check which clusters have been fit already
 catlist = np.genfromtxt(dirout+'log-results.txt',dtype=None,delimiter=';',names=True)
 catlist['name'] = np.array([x.strip() for x in catlist['name']])
 good_OCs = catlist['name'].astype(str) # para escrever os nomes em str
+
 ############################################################################
-# serve apenas para escrever o header. nao e necessario quando usado o arquivo log-results.txt no dir results
-#logfile = open(dirout+logfilename, "a+")
-#logfile.write('name;                    RA_ICRS ;   DE_ICRS;        R;     dist;  e_dist;     age;   e_age;     FeH;   e_FeH;      Av;    e_Av;      Nc       \n')
-#logfile.close
-############################################################################
+# Start fitting pipeline
+
 # set membership files that will be fit sorted by size
-files = [f for f in sorted(glob.glob(memb_dir + "*.dat", recursive=True),key=os.path.getsize)]
+files = [f for f in sorted(glob.glob(memb_dir + "*.csv", recursive=True),key=os.path.getsize)]
 
 contfiles = 0
 
@@ -139,8 +143,8 @@ for i in range(len(files)):
     magcut = 40.
     guess = False
    
-    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='',filling_values='nan',encoding='utf-8')
-    
+    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='nan4',filling_values='nan',encoding='utf-8')
+
     #stop
     #remove nans para fazer os plots
     Gmag = transforma_para_float(obs['phot_g_mean_mag'])
@@ -197,16 +201,16 @@ for i in range(len(files)):
     ###########################################################################
     # Calculate cluster radius
     # calculate center coordinate
-    center = coord.SkyCoord(ra=np.mean(RA)*u.degree, dec=np.mean(DEC)*u.degree)
+    center = coord.SkyCoord(ra=np.median(RA)*u.degree, dec=np.median(DEC)*u.degree)
     
     # coordinates of stars
     star_coords = coord.SkyCoord(ra=RA*u.degree, dec=DEC*u.degree)
     
     # obtain distance from center
-    dist_center = center.separation(star_coords).degree  
+    star_center_dist = center.separation(star_coords).degree  
     
     # adopted radius of the cluster
-    radius = np.max(dist_center)
+    radius = np.max(star_center_dist)
     #######################################################################
     member_cut = 0.51
     
@@ -395,15 +399,13 @@ for i in range(len(files)):
         e_pmde_OC = statistics.stdev(pmde[ind_m])
 
         # para calcular R50 
-        radius = pyasl.getAngDist(racenter_OC,decenter_OC,RA[ind_m],DEC[ind_m])
-        radius = radius#*60. # in arcmin
-        radius.sort()
-        radiimax_OC = max(radius)
+        star_center_dist.sort()
+        radiimax_OC = np.max(star_center_dist)
         radiimaxarcmin = radiimax_OC*60.      
-        radius50_OC = np.sort(radius)[int(0.5*radius.size)]
+        radius50_OC = star_center_dist[int(0.5*star_center_dist.size)]
         radius50a_OC = radius50_OC*60. # in arcmin
         # stars in r50
-        condNr50_OC = radius<= radius50_OC
+        condNr50_OC = star_center_dist <= radius50_OC
         ind_Nr50_OC = np.where(condNr50_OC)
         N_radius50_OC = len(ind_Nr50_OC[0])
         ##########################################################################################
