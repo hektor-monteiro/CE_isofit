@@ -106,7 +106,7 @@ good_OCs = catlist['name'].astype(str) # para escrever os nomes em str
 # Start fitting pipeline
 
 # set membership files that will be fit sorted by size
-files = [f for f in sorted(glob.glob(memb_dir + "*.dat", recursive=True),key=os.path.getsize)]
+files = [f for f in sorted(glob.glob(memb_dir + "*.csv", recursive=True),key=os.path.getsize)]
 
 contfiles = 0
 
@@ -143,8 +143,8 @@ for i in range(len(files)):
     magcut = 40.
     guess = False
    
-    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='',filling_values='nan',encoding='utf-8')
-    
+    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='nan4',filling_values='nan',encoding='utf-8')
+
     #stop
     #remove nans para fazer os plots
     Gmag = transforma_para_float(obs['phot_g_mean_mag'])
