@@ -605,7 +605,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
         
     ###########################################################################
     # load full isochrone grid data and arrays of unique Age and Z values
-    grid_dir = '/home/wilton/ISO-FIT/'
+    grid_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/grids/'
     mod_grid, age_grid, z_grid = load_mod_grid(grid_dir, isoc_set='GAIA_eDR3')
     filters = ['G_BPmag','G_RPmag']
     refmag = 'G_BPmag'
@@ -707,7 +707,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
     verbosefile.write('\n')    
     verbosefile.write('Finished isochrone fitting...\n')
 
-    return np.median(res,axis=0),res.std(axis=0)
+    return np.median(res,axis=0),res.std(axis=0), np.median(res_lik), np.std(res_lik), np.percentile(res_lik, 16), np.percentile(res_lik, 84)
 #    return res[nruns-1,:],res.std(axis=0)
         
 ##############################################################################
