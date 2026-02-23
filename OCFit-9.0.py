@@ -207,10 +207,10 @@ for i in range(len(files)):
     star_coords = coord.SkyCoord(ra=RA*u.degree, dec=DEC*u.degree)
     
     # obtain distance from center
-    dist_center = center.separation(star_coords).degree  
+    star_center_dist = center.separation(star_coords).degree  
     
     # adopted radius of the cluster
-    radius = np.max(dist_center)
+    radius = np.max(star_center_dist)
     #######################################################################
     member_cut = 0.51
     
@@ -399,10 +399,7 @@ for i in range(len(files)):
         e_pmde_OC = statistics.stdev(pmde[ind_m])
 
         # para calcular R50 
-        radius = pyasl.getAngDist(racenter_OC,decenter_OC,RA[ind_m],DEC[ind_m])
-        radius = radius#*60. # in arcmin
-        radius.sort()
-        radiimax_OC = max(radius)
+        radiimax_OC = max(star_center_dist.sort())
         radiimaxarcmin = radiimax_OC*60.      
         radius50_OC = np.sort(radius)[int(0.5*radius.size)]
         radius50a_OC = radius50_OC*60. # in arcmin
