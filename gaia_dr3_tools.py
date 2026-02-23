@@ -656,6 +656,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
     tol = 1.e-3
 
     res = np.zeros([nruns,ndim])
+    res_lik = np.zeros([nruns])
     
     # start main loop of the method
     print ('----------------------------------------------------------------------')
