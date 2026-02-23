@@ -201,7 +201,7 @@ for i in range(len(files)):
     ###########################################################################
     # Calculate cluster radius
     # calculate center coordinate
-    center = coord.SkyCoord(ra=np.mean(RA)*u.degree, dec=np.mean(DEC)*u.degree)
+    center = coord.SkyCoord(ra=np.median(RA)*u.degree, dec=np.median(DEC)*u.degree)
     
     # coordinates of stars
     star_coords = coord.SkyCoord(ra=RA*u.degree, dec=DEC*u.degree)
