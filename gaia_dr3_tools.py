@@ -823,6 +823,74 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
 #    return center[:,iter-1]
 ##########################################################################################
     
+##############################################################################
+def calcula_correlacao_ICxmag(Gmagv,BRmag):
+    """
+    Função que calcula a correlação entre o índice de cor e magnitude para dados de estrela selecionados.
+    
+    Parâmetros:
+    - data_selecionado: Dados das estrelas selecionadas contendo as colunas 'Gmag' e 'BP-RP'.
+    - data_filtrado_all: Todos os dados filtrados das estrelas, usados para selecionar uma amostra aleatória.
+    - nstars: Número de estrelas a serem selecionadas aleatoriamente. Padrão é 1000.
+    - box: Tamanho do bin para calcular a mediana e o desvio padrão. Padrão é 0.50.
+    
+    Retorna:
+    - res_field: Correlação de Pearson para o campo (membros do aglomerado aberto).
+    - res_all: Correlação de Pearson para todos os dados (incluindo membros do aglomerado e não membros).
+    """
+    ###########################################################################
+    import numpy as np
+    import scipy.stats as stats 
+    ###########################################################################
+    
+    Gmagv_oc = Gmagv
+    BRmag_oc = BRmag
+    
+    box = 0.50 # tamnho do bin
+    magbins = np.linspace(Gmagv_oc.min(),Gmagv_oc.max(),int((Gmagv_oc.max()-Gmagv_oc.min())/box))
+    colorbins_oc_median = magbins*0.
+    dcolor_oc_std = magbins*0.
+    colorbins_f_median = magbins*0.
+    dcolor_f_std = magbins*0.
+    
+    for k in range(magbins.size):
+        colorbins_oc_median[k] = np.nanmedian(BRmag_oc[np.abs(Gmagv_oc-magbins[k]) < box])
+        dcolor_oc_std[k] = np.nanstd(BRmag_oc[np.abs(Gmagv_oc-magbins[k]) < box])
+       
+        #print(magbins[k], '   ', colorbins_oc_median[k], '   ', dcolor_oc_std[k]) 
+    
+    # retira bins com nan xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    cond13 = np.isfinite(colorbins_oc_median)
+    cond14 = np.isfinite(colorbins_f_median)
+    indice_sem_nan = np.where(cond13&cond14)
+    magbins = magbins[indice_sem_nan]
+    colorbins_oc_median = colorbins_oc_median[indice_sem_nan]
+    dcolor_oc_std = dcolor_oc_std[indice_sem_nan]
+     
+    # retira bins com nan xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    
+    
+    ##################################################################################################
+    #retira as gigantes:
+    ind_max_colorbins_median = (colorbins_oc_median == np.nanmax(colorbins_oc_median))
+    ind_min_colorbins_median = (colorbins_oc_median == np.nanmin(colorbins_oc_median))
+    mag_GV_min = magbins[ind_max_colorbins_median][0]
+    mag_GV_max = magbins[ind_min_colorbins_median][0] 
+    cond1_GV = BRmag_oc >= np.nanmin(colorbins_oc_median)   
+    cond2_GV = Gmagv_oc <=  mag_GV_max#    (np.nanmax(Gmagv_oc) - np.nanmin(Gmagv_oc))/2.
+    indice_GV = np.where(cond1_GV&cond2_GV)
+    indice_GV_SP = np.where(~(cond1_GV&cond2_GV))
+    BRmag_oc_sp = BRmag_oc[indice_GV_SP]
+    Gmagv_oc_sp = Gmagv_oc[indice_GV_SP]
+    N_sp = len(Gmagv_oc[indice_GV_SP])
+    ##################################################################################################  
+    #calcula correlacao entre IC e mag
+    try:
+        res = stats.pearsonr(BRmag_oc_sp, Gmagv_oc_sp)
+        return res, N_sp
+    except Exception:
+        res = [9.99,9.99]
+        return res, N_sp
+        
 
 
 
