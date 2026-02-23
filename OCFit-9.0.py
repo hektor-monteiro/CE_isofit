@@ -399,12 +399,13 @@ for i in range(len(files)):
         e_pmde_OC = statistics.stdev(pmde[ind_m])
 
         # para calcular R50 
-        radiimax_OC = max(star_center_dist.sort())
+        star_center_dist.sort()
+        radiimax_OC = np.max(star_center_dist)
         radiimaxarcmin = radiimax_OC*60.      
-        radius50_OC = np.sort(radius)[int(0.5*radius.size)]
+        radius50_OC = star_center_dist[int(0.5*star_center_dist.size)]
         radius50a_OC = radius50_OC*60. # in arcmin
         # stars in r50
-        condNr50_OC = radius<= radius50_OC
+        condNr50_OC = star_center_dist <= radius50_OC
         ind_Nr50_OC = np.where(condNr50_OC)
         N_radius50_OC = len(ind_Nr50_OC[0])
         ##########################################################################################
