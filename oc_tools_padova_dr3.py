@@ -887,7 +887,110 @@ def model_cluster(age,dist,FeH,Av,bin_frac,nstars,bands,refMag,Mcut=False,error=
 # Define the log likelihood
 # theta -> vector of model parameters [age, dist, z, ebv, Rv]
 # 
+
+def lnlikelihoodCE_log(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, prior=np.array([[1.],[1.e3]]), seed=None):
+    # LOG OPTIMIZED (Numpy)
+    age, dist, FeH, Av = theta
+    bin_frac = 0.5
+    nstars = obs_iso.size
+    Mlim = obs_iso[refMag].max()
+    
+    # --- OPTIMIZER SAFETY NET ---
+    try:
+        # get synth isochrone
+        mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
+                                    refMag,error=False,Mcut=Mlim,seed=seed,
+                                    imf='chabrier',alpha=2.1, beta=-3.,gaia_ext=True)
+        
+        # Also reject if the model successfully runs but returns no stars
+        if len(mod_cluster) == 0:
+            return 1e10
+            
+    except ValueError:
+        # Catch the argmin crash from sample_from_isoc and penalize the CE algorithm
+        return 1e10 
+    # ----------------------------
+   
+    obs = np.column_stack([obs_iso[b] for b in bands])
+    obs_er = np.column_stack([obs_iso_er[b] for b in bands])
+    mod = np.column_stack([mod_cluster[b] for b in bands])
+    
+    norm = np.prod(1. / np.sqrt(2.*np.pi * obs_er**2), axis=1) # (N,)
+    inv_sigma2 = 1.0 / (obs_er**2)
+    
+    p_iso = np.empty(nstars)
+    
+    for i in range(nstars):
+        diff = obs[i,:] - mod
+        term_sum = np.sum(-0.5 * (diff**2) * inv_sigma2[i,:], axis=1)
+        p_iso[i] = norm[i] * np.max(np.exp(term_sum))
+
+    prior_term = np.prod(np.exp(-0.5*( (theta-prior[0,:])/prior[1,:] )**2))
+    p_iso = p_iso * prior_term
+    p_iso[p_iso < 1.e-307] = 1.e-307   
+    res = np.log(p_iso) + np.log(weight)
+    res = -np.sum(res)
+    return res
+
+
+
 def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
+                   prior=[[1.],[1.e3]],seed=None):
+    
+    age, dist, FeH, Av = theta
+    bin_frac = 0.5
+
+    nstars = len(obs_iso) 
+    Mlim = obs_iso[refMag].max()
+    
+    # --- OPTIMIZER SAFETY NET ---
+    try:
+        # get synth isochrone
+        mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
+                                    refMag,error=False,Mcut=Mlim,seed=seed,
+                                    imf='chabrier',alpha=2.1, beta=-3.,gaia_ext=True)
+        
+        # Also reject if the model successfully runs but returns no stars
+        if len(mod_cluster) == 0:
+            return 1e30
+            
+    except ValueError:
+        # Catch the argmin crash from sample_from_isoc and penalize the CE algorithm
+        return 1e30 
+    # ----------------------------
+
+    # get distance of each observed star to the model isochrone
+    obs = np.array(obs_iso[bands].tolist())
+    obs_er = np.array(obs_iso_er[bands].tolist())
+    mod = np.array(mod_cluster[bands].tolist())
+    
+    p_iso = []
+    for i in range(nstars):
+        aux = np.prod(1./np.sqrt(2.*np.pi*obs_er[i,:]**2)*
+                      np.exp(-0.5*(obs[i,:]-mod)**2/obs_er[i,:]**2),axis=1)
+        p_iso.append(np.max(aux))
+
+    p_iso = np.array(p_iso) 
+    p_iso[p_iso < 1.e-307] = 1.e-307   
+    
+    res = np.log(p_iso) + np.log(weight)
+    log_likelihood = np.sum(res)
+    
+    # Calculate log_prior mathematically correctly
+    prior_arr = np.array(prior)
+    log_prior = np.sum(-0.5 * ((theta - prior_arr[0,:]) / prior_arr[1,:])**2)
+    
+    total_log_posterior = log_likelihood + log_prior
+    penalty = -total_log_posterior
+    
+    # Final check to prevent NaNs from crashing the CE optimizer
+    if np.isnan(penalty) or penalty > 1e30:
+        return 1e30
+        
+    return penalty
+
+
+def lnlikelihoodCE_ori(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
                    prior=[[1.],[1.e3]],seed=None):
     
     # generate synth cluster from input parameters
@@ -899,12 +1002,22 @@ def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
     nstars = obs_iso.size
     Mlim = obs_iso[refMag].max()
     
-    # get synth isochrone
-
-    mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
-                                refMag,error=False,Mcut=Mlim,seed=seed,
-                                imf='chabrier',alpha=2.1, beta=-3.,gaia_ext = True)
-
+    # --- OPTIMIZER SAFETY NET ---
+    try:
+        # get synth isochrone
+        mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
+                                    refMag,error=False,Mcut=Mlim,seed=seed,
+                                    imf='chabrier',alpha=2.1, beta=-3.,gaia_ext=True)
+        
+        # Also reject if the model successfully runs but returns no stars
+        if len(mod_cluster) == 0:
+            return 1e30
+            
+    except ValueError:
+        # Catch the argmin crash from sample_from_isoc and penalize the CE algorithm
+        return 1e30 
+    # ----------------------------
+    
     # get distance of each observed star to the model isochrone
     obs = np.array(obs_iso[bands].tolist())
     obs_er = np.array(obs_iso_er[bands].tolist())
@@ -926,8 +1039,8 @@ def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
     res = np.log(p_iso) + np.log(weight)
     res = -np.sum(res)
     
-    #print res, p_iso.max(), p_iso.min() #'   '.join('%0.3f' % v for v in theta)
-    
+    #print ('1:',res, '2:',p_iso.max(), '3:',p_iso.min()) #'   '.join('%0.3f' % v for v in theta)
+        
     return res
 
 
