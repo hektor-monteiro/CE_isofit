@@ -888,7 +888,7 @@ def model_cluster(age,dist,FeH,Av,bin_frac,nstars,bands,refMag,Mcut=False,error=
 # theta -> vector of model parameters [age, dist, z, ebv, Rv]
 # 
 
-def lnlikelihoodCE_log(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, prior=np.array([[1.],[1.e3]]), seed=None):
+def lnlikelihoodCE(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, prior=np.array([[1.],[1.e3]]), seed=None):
     # LOG OPTIMIZED (Numpy)
     age, dist, FeH, Av = theta
     bin_frac = 0.5
@@ -925,16 +925,15 @@ def lnlikelihoodCE_log(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight
         term_sum = np.sum(-0.5 * (diff**2) * inv_sigma2[i,:], axis=1)
         p_iso[i] = norm[i] * np.max(np.exp(term_sum))
 
-    prior_term = np.prod(np.exp(-0.5*( (theta-prior[0,:])/prior[1,:] )**2))
-    p_iso = p_iso * prior_term
+    log_prior = np.sum(-0.5*( (theta-prior[0,:])/prior[1,:] )**2) 
     p_iso[p_iso < 1.e-307] = 1.e-307   
-    res = np.log(p_iso) + np.log(weight)
-    res = -np.sum(res)
+    res = -np.sum(np.log(p_iso) + np.log(weight)) + log_prior
+    
     return res
 
 
 
-def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
+def lnlikelihoodCE_mathfix(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
                    prior=[[1.],[1.e3]],seed=None):
     
     age, dist, FeH, Av = theta
