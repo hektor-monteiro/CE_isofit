@@ -73,7 +73,7 @@ plt.close('all')
 ############################################################################
 # Define working directories
 
-base_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/CE_isofit/'
+base_dir = '/home/hmonteiro/Documentos/CE_isofit/'
 #fit_dir = base_dir+'OCFit/'
 memb_dir = base_dir+'dados/'
 dirout = base_dir+'results/' 
