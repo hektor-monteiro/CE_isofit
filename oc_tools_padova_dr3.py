@@ -53,25 +53,25 @@ def save_mod_grid(dir, isoc_set='UBVRI'):
 # Load binary file with full isochrone grid
 # and returns array of data and arrays of unique age and Z values
 #
-def load_mod_grid(dir, isoc_set='UBVRI'):
+def load_mod_grid(grid_dir, isoc_set='UBVRI'):
     global mod_grid
     global age_grid
     global z_grid
 
     if(isoc_set == 'UBVRI'):
-        mod_grid = np.load(dir+'full_isoc_UBVRI.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_UBVRI.npy')
         
     if(isoc_set == 'GAIA'):
-        mod_grid = np.load(dir+'full_isoc_GAIA_CMD33.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_GAIA_CMD33.npy')
 
     if(isoc_set == 'GAIA_eDR3'):
-        mod_grid = np.load(dir+'full_isoc_Gaia_eDR3_CMD34.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_Gaia_eDR3_CMD39.npy')
 
     if(isoc_set == 'MIST-UBVRI'):
-        mod_grid = np.load(dir+'full_isoc_MIST-UBVRI.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_MIST-UBVRI.npy')
         
     if(isoc_set == 'MIST-GAIA'):
-        mod_grid = np.load(dir+'full_isoc_MIST-GAIA.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_MIST-GAIA.npy')
             
     age_grid = np.unique(mod_grid['logAge'])
     z_grid = np.unique(mod_grid['Zini'])
