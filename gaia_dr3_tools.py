@@ -605,7 +605,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
         
     ###########################################################################
     # load full isochrone grid data and arrays of unique Age and Z values
-    grid_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/grids/'
+    grid_dir = './grids/'
     mod_grid, age_grid, z_grid = load_mod_grid(grid_dir, isoc_set='GAIA_eDR3')
     filters = ['G_BPmag','G_RPmag']
     refmag = 'G_BPmag'
