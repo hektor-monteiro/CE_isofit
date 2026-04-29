@@ -73,7 +73,7 @@ plt.close('all')
 ############################################################################
 # Define working directories
 
-base_dir = '/home/hmonteiro/Documentos/CE_isofit/'
+base_dir = './'
 #fit_dir = base_dir+'OCFit/'
 memb_dir = base_dir+'dados/'
 dirout = base_dir+'results/' 
@@ -143,7 +143,10 @@ for i in range(len(files)):
     magcut = 40.
     guess = False
    
-    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='nan4',filling_values='nan',encoding='utf-8')
+    import pandas as pd
+    obs_df = pd.read_csv(files[i], sep=';', skipinitialspace=True, na_values=['nan4', 'nan', 'NOT_AVAILABLE13'])
+    obs_df.rename(columns=lambda x: x.strip(), inplace=True)
+    obs = obs_df.to_records(index=False)
 
     #stop
     #remove nans para fazer os plots
