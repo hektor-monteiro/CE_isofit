@@ -65,7 +65,7 @@ def load_mod_grid(grid_dir, isoc_set='UBVRI'):
         mod_grid = np.load(grid_dir+'full_isoc_GAIA_CMD33.npy')
 
     if(isoc_set == 'GAIA_eDR3'):
-        mod_grid = np.load(grid_dir+'full_isoc_Gaia_eDR3_CMD39.npy')
+        mod_grid = (np.load(grid_dir+'full_isoc_Gaia_eDR3_CMD39.npz'))['arr_0']
 
     if(isoc_set == 'MIST-UBVRI'):
         mod_grid = np.load(grid_dir+'full_isoc_MIST-UBVRI.npy')
