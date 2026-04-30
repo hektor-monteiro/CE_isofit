@@ -443,45 +443,53 @@ def gaia_ext_coefs(band):
     return dict_gaia[band]
 
 ###############################################
-def gaia_ext_Hek(color, Av,band):
-    
-    Avv = color*0. + Av
-    
-    # polynomial values for FITZPATRICK & MASSA (2019) and Gaia eDR3 log g = 2,4 FeH=0 
-    if (band == 'G_BPmag'):
-        poly = models.Polynomial2D(degree=4)
-        poly._parameters = np.array([ 1.04147486e+00,  2.01708670e-02,  3.64641123e-03, -2.63700516e-04,
-        6.31474566e-05, -8.83945036e-02,  1.83825389e-02,  4.50477706e-03,
-        3.26750519e-03, -1.62928523e-02, -2.04675757e-03, -5.40740309e-03,
-        8.07038769e-04,  2.95228508e-03, -6.76541300e-04])
-        coeffs = dict((name, poly._parameters[i]) for i, name in enumerate(poly.param_names))
-        poly = models.Polynomial2D(degree=4,**coeffs)
-        k = poly(Avv,color)
- 
-               
-    if (band == 'G_RPmag'):
-        poly = models.Polynomial2D(degree=4)
-        poly._parameters = np.array([ 6.38099500e-01,  2.30574591e-03, -8.99468273e-04,  4.46199671e-04,
-        6.24722092e-05, -2.25374369e-02, -1.02043689e-02, -3.76323711e-03,
-        3.50246307e-03,  6.30231188e-03,  6.40243260e-03, -5.49766107e-03,
-       -3.10851841e-03,  3.09564948e-03, -7.33372566e-04])
-        coeffs = dict((name, poly._parameters[i]) for i, name in enumerate(poly.param_names))
-        poly = models.Polynomial2D(degree=4,**coeffs)
-        k = poly(Avv,color)
 
+COEFS_BP = np.array([ 1.04147486e+00,  2.01708670e-02,  3.64641123e-03, -2.63700516e-04,
+                      6.31474566e-05, -8.83945036e-02,  1.83825389e-02,  4.50477706e-03,
+                      3.26750519e-03, -1.62928523e-02, -2.04675757e-03, -5.40740309e-03,
+                      8.07038769e-04,  2.95228508e-03, -6.76541300e-04])
+
+COEFS_RP = np.array([ 6.38099500e-01,  2.30574591e-03, -8.99468273e-04,  4.46199671e-04,
+                      6.24722092e-05, -2.25374369e-02, -1.02043689e-02, -3.76323711e-03,
+                      3.50246307e-03,  6.30231188e-03,  6.40243260e-03, -5.49766107e-03,
+                     -3.10851841e-03,  3.09564948e-03, -7.33372566e-04])
+
+COEFS_G = np.array([ 8.20652902e-01,  2.61920418e-02,  2.68469208e-03,  9.36694336e-05,
+                    -2.52100168e-05, -1.27466265e-01,  1.93940175e-02,  1.88492527e-03,
+                    -9.17877230e-04, -1.38032911e-02,  2.02177729e-03,  7.35239495e-04,
+                    -1.19970676e-03, -5.13235046e-04,  2.08371649e-04])
+
+@nb.njit(fastmath=True)
+def calc_poly2d_deg4(x, y, c):
+    """Evaluates the 15-term degree-4 2D polynomial."""
+    x2 = x * x
+    x3 = x2 * x
+    x4 = x3 * x
     
-    if (band == 'Gmag'):
-        poly = models.Polynomial2D(degree=4)
-        poly._parameters = np.array([ 8.20652902e-01,  2.61920418e-02,  2.68469208e-03,  9.36694336e-05,
-       -2.52100168e-05, -1.27466265e-01,  1.93940175e-02,  1.88492527e-03,
-       -9.17877230e-04, -1.38032911e-02,  2.02177729e-03,  7.35239495e-04,
-       -1.19970676e-03, -5.13235046e-04,  2.08371649e-04])
-        coeffs = dict((name, poly._parameters[i]) for i, name in enumerate(poly.param_names))
-        poly = models.Polynomial2D(degree=4,**coeffs)
-        k = poly(Avv,color)
-            
-        
-    return k
+    y2 = y * y
+    y3 = y2 * y
+    y4 = y3 * y
+    
+    res = (c[0] + 
+           c[1]*x + c[2]*x2 + c[3]*x3 + c[4]*x4 + 
+           c[5]*y + c[6]*y2 + c[7]*y3 + c[8]*y4 + 
+           c[9]*x*y + c[10]*x*y2 + c[11]*x*y3 + 
+           c[12]*x2*y + c[13]*x2*y2 + 
+           c[14]*x3*y)
+    return res
+
+def gaia_ext_Hek(color, Av, band):
+
+    Avv = np.full_like(color, Av) 
+    
+    if band == 'G_BPmag':
+        return calc_poly2d_deg4(Avv, color, COEFS_BP)
+    elif band == 'G_RPmag':
+        return calc_poly2d_deg4(Avv, color, COEFS_RP)
+    elif band == 'Gmag':
+        return calc_poly2d_deg4(Avv, color, COEFS_G)
+    
+    return np.zeros_like(color)
     
 ###############################################
 # Make an observed synthetic cluster given an isochrone,
