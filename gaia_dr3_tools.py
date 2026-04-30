@@ -745,16 +745,19 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
         ind_hi = np.where(pars[:,n]-prange[:,1] > 0.)
         pars[ind_hi,n] = prange[ind_hi,1]
                 
+    pool = mp.Pool(processes=nthreads)
+    
     while (iter < itmax and avg_var > tol):
                 
 ##########################################################################################
-#     parallel test
-        pool = mp.Pool(processes=nthreads)
-        res = [pool.apply_async(objective, args=(theta,obs,obs_er,filters,
-                                                    refmag,prange,weight,prior,seed,)) for theta in pars.T]
-        lik = np.array([p.get() for p in res])
-        pool.close()
-        pool.join()
+#     parallel likelihood calculation
+
+        # Prepare the arguments for each worker
+        args_iterable = [(theta, obs, obs_er, filters, refmag, prange, weight, prior, seed) for theta in pars.T]
+        
+        # Dispatch tasks and wait for results cleanly
+        lik = np.array(pool.starmap(objective, args_iterable))
+             
 ###########################################################################################
              
         # sort solution in descending likelihood
@@ -815,6 +818,8 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
         
         iter += 1
 
+    pool.close()
+    pool.join()
 #        print 'Best solution'
     print ('     '.join('%0.3f' % v for v in pars_best), "{0:0.2f}".format(lik_best), iter, "{0:0.5f}".format(avg_var))    
     return pars_best, lik_best
