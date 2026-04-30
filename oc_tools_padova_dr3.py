@@ -22,7 +22,7 @@ from sklearn.metrics import DistanceMetric
 from scipy.spatial.distance import cdist
 from scipy import stats
 from astropy.modeling import models
-
+import numba as nb
 ###############################################
 # function to add columns to rec array
 
@@ -887,6 +887,28 @@ def model_cluster(age,dist,FeH,Av,bin_frac,nstars,bands,refMag,Mcut=False,error=
 # Define the log likelihood
 # theta -> vector of model parameters [age, dist, z, ebv, Rv]
 # 
+@nb.njit(fastmath=True)
+def calc_p_iso_numba(obs, mod, inv_sigma2, norm):
+    N = obs.shape[0]
+    M = mod.shape[0]
+    bands = obs.shape[1]
+    p_iso = np.empty(N)
+
+    for i in range(N):
+        max_val = -1e300
+        for j in range(M):
+            term = 0.0
+            for k in range(bands):
+                diff = obs[i, k] - mod[j, k]
+                term += -0.5 * (diff * diff) * inv_sigma2[i, k]
+            
+            exp_term = np.exp(term)
+            if exp_term > max_val:
+                max_val = exp_term
+        p_iso[i] = norm[i] * max_val
+        
+    return p_iso
+
 
 def lnlikelihoodCE(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, prior=np.array([[1.],[1.e3]]), seed=None):
     # LOG OPTIMIZED (Numpy)
@@ -915,22 +937,17 @@ def lnlikelihoodCE(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, pr
     obs_er = np.column_stack([obs_iso_er[b] for b in bands])
     mod = np.column_stack([mod_cluster[b] for b in bands])
     
-    norm = np.prod(1. / np.sqrt(2.*np.pi * obs_er**2), axis=1) # (N,)
+    norm = np.prod(1. / np.sqrt(2.*np.pi * obs_er**2), axis=1) 
     inv_sigma2 = 1.0 / (obs_er**2)
     
-    p_iso = np.empty(nstars)
-    
-    for i in range(nstars):
-        diff = obs[i,:] - mod
-        term_sum = np.sum(-0.5 * (diff**2) * inv_sigma2[i,:], axis=1)
-        p_iso[i] = norm[i] * np.max(np.exp(term_sum))
+    # Pure C-speed execution, zero memory allocation overhead
+    p_iso = calc_p_iso_numba(obs, mod, inv_sigma2, norm)
 
     log_prior = np.sum(-0.5*( (theta-prior[0,:])/prior[1,:] )**2) 
     p_iso[p_iso < 1.e-307] = 1.e-307   
     res = -np.sum(np.log(p_iso) + np.log(weight)) + log_prior
     
     return res
-
 
 
 def lnlikelihoodCE_mathfix(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
