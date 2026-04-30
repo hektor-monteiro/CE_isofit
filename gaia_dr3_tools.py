@@ -505,17 +505,15 @@ def run_CE(objective,data,weight,sample,prange,itmax,bandwidth,alpha,tol,nthread
 
     iter = 0
     
-    while (iter < itmax):
-        
+    with mp.Pool(processes=mp.cpu_count()-1) as pool:
+        while (iter < itmax):
+
 ##########################################################################################
-        pool = mp.Pool(processes=mp.cpu_count()-1)
-        res = [pool.apply_async(objective, args=(theta,data,weight,)) for theta in pars.T]
-        lik = np.array([p.get() for p in res])
-        pool.close()
-        pool.join()
+            res = pool.starmap(objective, [(theta, data, weight) for theta in pars.T], chunksize=max(1, len(pars.T) // (mp.cpu_count()-1)))
+            lik = np.array(res)
 ###########################################################################################
 
-        # sort solution in descending likelihood
+            # sort solution in descending likelihood
         
         ind = np.argsort(lik)
 
@@ -745,19 +743,16 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
         ind_hi = np.where(pars[:,n]-prange[:,1] > 0.)
         pars[ind_hi,n] = prange[ind_hi,1]
                 
-    while (iter < itmax and avg_var > tol):
-                
+    with mp.Pool(processes=nthreads) as pool:
+        while (iter < itmax and avg_var > tol):
+
 ##########################################################################################
 #     parallel test
-        pool = mp.Pool(processes=nthreads)
-        res = [pool.apply_async(objective, args=(theta,obs,obs_er,filters,
-                                                    refmag,prange,weight,prior,seed,)) for theta in pars.T]
-        lik = np.array([p.get() for p in res])
-        pool.close()
-        pool.join()
+            res = pool.starmap(objective, [(theta,obs,obs_er,filters,refmag,prange,weight,prior,seed) for theta in pars.T], chunksize=max(1, len(pars.T) // nthreads))
+            lik = np.array(res)
 ###########################################################################################
-             
-        # sort solution in descending likelihood
+
+            # sort solution in descending likelihood
         ind = np.argsort(lik)
         
         # best solution in iteration

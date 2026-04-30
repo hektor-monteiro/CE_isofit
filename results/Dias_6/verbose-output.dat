@@ -1,0 +1,19 @@
+Mag. Cut:
+40.0
+Membership Cut:
+0.51
+From Gaia AG ≈ 0.859⋅AV: Av =  2.953 +/- 0.886 mag
+Galactocentric radius:     5.42
+FeH prior from Galactic Gradient:     0.18 +-     0.10
+Guess:
+[8.0, np.float64(2.968254206933694), np.float64(0.17556269879577668), np.float64(2.952542180830423)]
+Prior sigma:
+[1.00000000e+03 2.40398990e-01 1.00000000e-01 8.85762654e-01]
+number of member stars: 227
+1/pi:  3.014
+age prange: [   6.7 ,   10.3]
+distance prange: [   1.8 ,    9.0]
+FeH prange: [  -0.9 ,    0.7]
+----------------------------------------------------------------------
+Age       Dist.       [FeH]      Av
+----------------------------------------------------------------------

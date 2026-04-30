@@ -56,24 +56,15 @@ def add_col(array,col,col_name):
 #array = obs['ag_gspphot']  == equivale ao array com os dados
 #Gmag = transforma_para_float(obs['phot_bp_mean_mag']) = exemplo de como usar
 def transforma_para_float(array):
-    # para transformar dados em formato U9 para float
-    saida = array.astype(str)
-    n_elementos = len(array)
-    for j in range(n_elementos):
-        if saida[j] == 'nan4':
-            saida[j] = 'nan'
-            saida[j] = ''
-        else:
-            saida[j] = float(saida[j])
-    saida = b = np.asarray(saida,dtype = float)
-    return saida
+    import pandas as pd
+    return np.asarray(pd.to_numeric(array, errors='coerce'))
 ##########################################################################################
 plt.close('all')
 
 ############################################################################
 # Define working directories
 
-base_dir = '/home/hmonteiro/Documentos/CE_isofit/'
+base_dir = './'
 #fit_dir = base_dir+'OCFit/'
 memb_dir = base_dir+'dados/'
 dirout = base_dir+'results/' 
@@ -143,7 +134,10 @@ for i in range(len(files)):
     magcut = 40.
     guess = False
    
-    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='nan4',filling_values='nan',encoding='utf-8')
+    import pandas as pd
+    obs_df = pd.read_csv(files[i], sep=';', na_values=['nan4'], skipinitialspace=True)
+    obs_df.columns = obs_df.columns.str.strip()
+    obs = obs_df.to_records(index=False)
 
     #stop
     #remove nans para fazer os plots

@@ -319,48 +319,59 @@ def get_iso_from_grid(age,met,bands,refMag,Abscut=False, nointerp=False):
         
         for n in np.unique(iso1['label']):
             
-            f1 = iso1[filter][iso1['label'] == n]
-            f2 = iso2[filter][iso2['label'] == n]
+            mask1 = (iso1['label'] == n)
+            mask2 = (iso2['label'] == n)
             
-            m1 = iso1['Mini'][iso1['label'] == n]
-            m2 = iso2['Mini'][iso2['label'] == n]
+            f1 = iso1[filter][mask1]
+            f2 = iso2[filter][mask2]
 
-            mf1 = iso1['Mass'][iso1['label'] == n]
-            mf2 = iso2['Mass'][iso2['label'] == n]
+            m1 = iso1['Mini'][mask1]
+            m2 = iso2['Mini'][mask2]
+
+            mf1 = iso1['Mass'][mask1]
+            mf2 = iso2['Mass'][mask2]
 
             if(f1.size < 2 or f2.size < 2):
-                    
                 continue
 
-            elif(f1.size > f2.size):
+            if(f1.size > f2.size):
                 npoints = f2.size
                 
-                f1i = interp1d(np.arange(f1.size),f1)
-                f1 = f1i(np.linspace(0,f1.size-1,npoints))
-                
-                m1i = interp1d(np.arange(m1.size),m1)
-                m1 = m1i(np.linspace(0,m1.size-1,npoints))
-                
-                mf1i = interp1d(np.arange(mf1.size),mf1)
-                mf1 = m1i(np.linspace(0,mf1.size-1,npoints))
-                
+                xp1 = np.arange(f1.size)
+                xnew = np.linspace(0, f1.size-1, npoints)
+                f1 = np.interp(xnew, xp1, f1)
+                m1 = np.interp(xnew, xp1, m1)
+                mf1 = np.interp(xnew, xp1, mf1)
             else:
                 npoints = f1.size
 
-                f2i = interp1d(np.arange(f2.size),f2)
-                f2 = f2i(np.linspace(0,f2.size-1,npoints))
-                
-                m2i = interp1d(np.arange(m2.size),m2)
-                m2 = m2i(np.linspace(0,m2.size-1,npoints))
-                
-                mf2i = interp1d(np.arange(mf2.size),mf2)
-                mf2 = mf2i(np.linspace(0,mf2.size-1,npoints))
+                xp2 = np.arange(f2.size)
+                xnew = np.linspace(0, f2.size-1, npoints)
+                f2 = np.interp(xnew, xp2, f2)
+                m2 = np.interp(xnew, xp2, m2)
+                mf2 = np.interp(xnew, xp2, mf2)
                 
             t = dist0/(dist0+dist1)
             
-            mass_int = np.concatenate([mass_int, (1.-t)*m1+t*m2])
-            finalmass_int = np.concatenate([finalmass_int, (1.-t)*mf1+t*mf2])
-            f_int = np.concatenate([f_int, (1.-t)*f1+t*f2 ])
+            if isinstance(mass_int, list):
+                mass_int.append((1.-t)*m1 + t*m2)
+                finalmass_int.append((1.-t)*mf1 + t*mf2)
+                f_int.append((1.-t)*f1 + t*f2)
+            else:
+                # the first loop iteration handles list append.
+                # wait, in original it was initialized as empty list: `mass_int = []`
+                # so we can append, and after the loop over `n` concatenate them.
+                pass
+
+        if len(mass_int) > 0:
+            mass_int = np.concatenate(mass_int)
+            finalmass_int = np.concatenate(finalmass_int)
+            f_int = np.concatenate(f_int)
+        else:
+            mass_int = np.array([])
+            finalmass_int = np.array([])
+            f_int = np.array([])
+
             
 
         photint.append(f_int)
@@ -918,12 +929,10 @@ def lnlikelihoodCE(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, pr
     norm = np.prod(1. / np.sqrt(2.*np.pi * obs_er**2), axis=1) # (N,)
     inv_sigma2 = 1.0 / (obs_er**2)
     
-    p_iso = np.empty(nstars)
-    
-    for i in range(nstars):
-        diff = obs[i,:] - mod
-        term_sum = np.sum(-0.5 * (diff**2) * inv_sigma2[i,:], axis=1)
-        p_iso[i] = norm[i] * np.max(np.exp(term_sum))
+    diff = obs[:, np.newaxis, :] - mod[np.newaxis, :, :]
+    term_sum = np.sum(-0.5 * (diff**2) * inv_sigma2[:, np.newaxis, :], axis=2)
+    max_term = np.max(term_sum, axis=1)
+    p_iso = norm * np.exp(max_term)
 
     log_prior = np.sum(-0.5*( (theta-prior[0,:])/prior[1,:] )**2) 
     p_iso[p_iso < 1.e-307] = 1.e-307   
