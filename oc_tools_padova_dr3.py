@@ -54,9 +54,8 @@ def save_mod_grid(dir, isoc_set='UBVRI'):
 # and returns array of data and arrays of unique age and Z values
 #
 def load_mod_grid(grid_dir, isoc_set='UBVRI'):
-    global mod_grid
-    global age_grid
-    global z_grid
+    
+    global mod_grid, age_grid, z_grid, grid_dict
 
     if(isoc_set == 'UBVRI'):
         mod_grid = np.load(grid_dir+'full_isoc_UBVRI.npy')
@@ -76,6 +75,14 @@ def load_mod_grid(grid_dir, isoc_set='UBVRI'):
     age_grid = np.unique(mod_grid['logAge'])
     z_grid = np.unique(mod_grid['Zini'])
     
+    print("Pre-computing isochrone grid dictionary for O(1) lookups...")
+    grid_dict = {}
+    for age in age_grid:
+        for z in z_grid:
+            mask = (mod_grid['logAge'] == age) & (mod_grid['Zini'] == z)
+            if np.any(mask):
+                grid_dict[(age, z)] = mod_grid[mask]
+                
     return mod_grid, age_grid, z_grid
 ###############################################
 # truncated PAreto for Salpeter IMF
@@ -270,7 +277,8 @@ def sample_from_isoc(rawisoc,bands,refMag,nstars,imf='chabrier',alpha=2.3,
 
 def get_iso_from_grid(age,met,bands,refMag,Abscut=False, nointerp=False):
     
-    global mod_grid, age_grid, z_grid
+    global mod_grid, age_grid, z_grid, grid_dict
+    
     # check to see if grid is loaded
     if 'mod_grid' not in globals(): 
         raise NameError('Isochrone grid not loaded!')
@@ -296,19 +304,17 @@ def get_iso_from_grid(age,met,bands,refMag,Abscut=False, nointerp=False):
     dist1 = np.sqrt(dist_age_1**2 + dist_z_1**2)
     
     # get the closest isochrone to the given age and Z
+    
+    age_0, age_1 = age_grid[ind_age[0]], age_grid[ind_age[1]]
+    z_0, z_1 = z_grid[ind_z[0]], z_grid[ind_z[1]]
+
+    iso1 = grid_dict[(age_0, z_0)]
+    iso2 = grid_dict[(age_1, z_1)]
+    
     #apply absolute mag cut if set
     if(Abscut):
-        iso1 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[0]]) & 
-                       (mod_grid['Zini'] == z_grid[ind_z[0]]) & 
-                       (mod_grid[refMag] < Abscut)]
-        iso2 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[1]]) & 
-                       (mod_grid['Zini'] == z_grid[ind_z[1]]) & 
-                       (mod_grid[refMag] < Abscut)]
-    else:
-        iso1 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[0]]) &
-                       (mod_grid['Zini'] == z_grid[ind_z[0]])]
-        iso2 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[1]]) &
-                       (mod_grid['Zini'] == z_grid[ind_z[1]])]   
+        iso1 = iso1[iso1[refMag] < Abscut]
+        iso2 = iso2[iso2[refMag] < Abscut]
         
     photint = []
     
@@ -459,7 +465,7 @@ COEFS_G = np.array([ 8.20652902e-01,  2.61920418e-02,  2.68469208e-03,  9.366943
                     -9.17877230e-04, -1.38032911e-02,  2.02177729e-03,  7.35239495e-04,
                     -1.19970676e-03, -5.13235046e-04,  2.08371649e-04])
 
-@nb.njit(fastmath=True)
+@nb.njit
 def calc_poly2d_deg4(x, y, c):
     """Evaluates the 15-term degree-4 2D polynomial."""
     x2 = x * x
@@ -895,7 +901,7 @@ def model_cluster(age,dist,FeH,Av,bin_frac,nstars,bands,refMag,Mcut=False,error=
 # Define the log likelihood
 # theta -> vector of model parameters [age, dist, z, ebv, Rv]
 # 
-@nb.njit(fastmath=True)
+@nb.njit
 def calc_p_iso_numba(obs, mod, inv_sigma2, norm):
     N = obs.shape[0]
     M = mod.shape[0]
