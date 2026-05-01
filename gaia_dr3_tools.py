@@ -291,15 +291,6 @@ def membership_3D(theta,data,just_oc = False):
     prob[~np.isfinite(prob)] = 0.
     
     return prob
-##########################################################################################
-# function to add columns to rec array
-
-def add_col(array,col,col_type=('float', '<f8')):
-    
-    y=np.zeros(array.shape, dtype=array.dtype.descr+[col_type])    
-    for name in array.dtype.names: y[name] = array[name]    
-    y[col_type[0]]=col    
-    return y
 
 ##########################################################################################
 def PM_cluster_model(pars,data):
