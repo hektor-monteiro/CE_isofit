@@ -909,17 +909,16 @@ def calc_p_iso_numba(obs, mod, inv_sigma2, norm):
     p_iso = np.empty(N)
 
     for i in range(N):
-        max_val = -1e300
+        max_term = -1e300
         for j in range(M):
             term = 0.0
             for k in range(bands):
                 diff = obs[i, k] - mod[j, k]
                 term += -0.5 * (diff * diff) * inv_sigma2[i, k]
-            
-            exp_term = np.exp(term)
-            if exp_term > max_val:
-                max_val = exp_term
-        p_iso[i] = norm[i] * max_val
+           
+            if term > max_term:
+                max_term = term
+        p_iso[i] = norm[i] * np.exp(max_term)
         
     return p_iso
 
