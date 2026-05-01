@@ -49,7 +49,7 @@ plt.close('all')
 
 base_dir = '/home/hmonteiro/Documentos/CE_isofit/'
 #fit_dir = base_dir+'OCFit/'
-memb_dir = base_dir+'dados/'
+memb_dir = base_dir+'data/'
 dirout = base_dir+'results/' 
 logfilename = 'log-results.txt'
 
