@@ -291,15 +291,6 @@ def membership_3D(theta,data,just_oc = False):
     prob[~np.isfinite(prob)] = 0.
     
     return prob
-##########################################################################################
-# function to add columns to rec array
-
-def add_col(array,col,col_type=('float', '<f8')):
-    
-    y=np.zeros(array.shape, dtype=array.dtype.descr+[col_type])    
-    for name in array.dtype.names: y[name] = array[name]    
-    y[col_type[0]]=col    
-    return y
 
 ##########################################################################################
 def PM_cluster_model(pars,data):
@@ -605,7 +596,7 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
         
     ###########################################################################
     # load full isochrone grid data and arrays of unique Age and Z values
-    grid_dir = '/home/hmonteiro/Google Drive/work/clusters/gaia_dr3/grids/'
+    grid_dir = './grids/'
     mod_grid, age_grid, z_grid = load_mod_grid(grid_dir, isoc_set='GAIA_eDR3')
     filters = ['G_BPmag','G_RPmag']
     refmag = 'G_BPmag'
@@ -647,9 +638,9 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
     ndim = prange.shape[0]
 
     # define CE tweak parameters
-    nruns = 10
+    nruns = 3
     itmax = 50#100    
-    sample = 100#200
+    sample = 150#200
 
     band = 0.15
     alpha = 0.4
@@ -745,16 +736,19 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
         ind_hi = np.where(pars[:,n]-prange[:,1] > 0.)
         pars[ind_hi,n] = prange[ind_hi,1]
                 
+    pool = mp.Pool(processes=nthreads)
+    
     while (iter < itmax and avg_var > tol):
                 
 ##########################################################################################
-#     parallel test
-        pool = mp.Pool(processes=nthreads)
-        res = [pool.apply_async(objective, args=(theta,obs,obs_er,filters,
-                                                    refmag,prange,weight,prior,seed,)) for theta in pars.T]
-        lik = np.array([p.get() for p in res])
-        pool.close()
-        pool.join()
+#     parallel likelihood calculation
+
+        # Prepare the arguments for each worker
+        args_iterable = [(theta, obs, obs_er, filters, refmag, prange, weight, prior, seed) for theta in pars.T]
+        
+        # Dispatch tasks and wait for results cleanly
+        lik = np.array(pool.starmap(objective, args_iterable))
+             
 ###########################################################################################
              
         # sort solution in descending likelihood
@@ -815,6 +809,8 @@ def run_isoc_CE(objective,obs,obs_er,filters,refmag,prange,sample,itmax,band,alp
         
         iter += 1
 
+    pool.close()
+    pool.join()
 #        print 'Best solution'
     print ('     '.join('%0.3f' % v for v in pars_best), "{0:0.2f}".format(lik_best), iter, "{0:0.5f}".format(avg_var))    
     return pars_best, lik_best

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Mon Nov 13 08:40:17 2017
@@ -22,7 +22,7 @@ from sklearn.metrics import DistanceMetric
 from scipy.spatial.distance import cdist
 from scipy import stats
 from astropy.modeling import models
-
+import numba as nb
 ###############################################
 # function to add columns to rec array
 
@@ -53,29 +53,36 @@ def save_mod_grid(dir, isoc_set='UBVRI'):
 # Load binary file with full isochrone grid
 # and returns array of data and arrays of unique age and Z values
 #
-def load_mod_grid(dir, isoc_set='UBVRI'):
-    global mod_grid
-    global age_grid
-    global z_grid
+def load_mod_grid(grid_dir, isoc_set='UBVRI'):
+    
+    global mod_grid, age_grid, z_grid, grid_dict
 
     if(isoc_set == 'UBVRI'):
-        mod_grid = np.load(dir+'full_isoc_UBVRI.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_UBVRI.npy')
         
     if(isoc_set == 'GAIA'):
-        mod_grid = np.load(dir+'full_isoc_GAIA_CMD33.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_GAIA_CMD33.npy')
 
     if(isoc_set == 'GAIA_eDR3'):
-        mod_grid = np.load(dir+'full_isoc_Gaia_eDR3_CMD34.npy')
+        mod_grid = (np.load(grid_dir+'full_isoc_Gaia_eDR3_CMD39.npz'))['arr_0']
 
     if(isoc_set == 'MIST-UBVRI'):
-        mod_grid = np.load(dir+'full_isoc_MIST-UBVRI.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_MIST-UBVRI.npy')
         
     if(isoc_set == 'MIST-GAIA'):
-        mod_grid = np.load(dir+'full_isoc_MIST-GAIA.npy')
+        mod_grid = np.load(grid_dir+'full_isoc_MIST-GAIA.npy')
             
     age_grid = np.unique(mod_grid['logAge'])
     z_grid = np.unique(mod_grid['Zini'])
     
+    print("Pre-computing isochrone grid dictionary for O(1) lookups...")
+    grid_dict = {}
+    for age in age_grid:
+        for z in z_grid:
+            mask = (mod_grid['logAge'] == age) & (mod_grid['Zini'] == z)
+            if np.any(mask):
+                grid_dict[(age, z)] = mod_grid[mask]
+                
     return mod_grid, age_grid, z_grid
 ###############################################
 # truncated PAreto for Salpeter IMF
@@ -270,7 +277,8 @@ def sample_from_isoc(rawisoc,bands,refMag,nstars,imf='chabrier',alpha=2.3,
 
 def get_iso_from_grid(age,met,bands,refMag,Abscut=False, nointerp=False):
     
-    global mod_grid, age_grid, z_grid
+    global mod_grid, age_grid, z_grid, grid_dict
+    
     # check to see if grid is loaded
     if 'mod_grid' not in globals(): 
         raise NameError('Isochrone grid not loaded!')
@@ -296,19 +304,17 @@ def get_iso_from_grid(age,met,bands,refMag,Abscut=False, nointerp=False):
     dist1 = np.sqrt(dist_age_1**2 + dist_z_1**2)
     
     # get the closest isochrone to the given age and Z
+    
+    age_0, age_1 = age_grid[ind_age[0]], age_grid[ind_age[1]]
+    z_0, z_1 = z_grid[ind_z[0]], z_grid[ind_z[1]]
+
+    iso1 = grid_dict[(age_0, z_0)]
+    iso2 = grid_dict[(age_1, z_1)]
+    
     #apply absolute mag cut if set
     if(Abscut):
-        iso1 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[0]]) & 
-                       (mod_grid['Zini'] == z_grid[ind_z[0]]) & 
-                       (mod_grid[refMag] < Abscut)]
-        iso2 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[1]]) & 
-                       (mod_grid['Zini'] == z_grid[ind_z[1]]) & 
-                       (mod_grid[refMag] < Abscut)]
-    else:
-        iso1 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[0]]) &
-                       (mod_grid['Zini'] == z_grid[ind_z[0]])]
-        iso2 = mod_grid[(mod_grid['logAge'] == age_grid[ind_age[1]]) &
-                       (mod_grid['Zini'] == z_grid[ind_z[1]])]   
+        iso1 = iso1[iso1[refMag] < Abscut]
+        iso2 = iso2[iso2[refMag] < Abscut]
         
     photint = []
     
@@ -443,45 +449,53 @@ def gaia_ext_coefs(band):
     return dict_gaia[band]
 
 ###############################################
-def gaia_ext_Hek(color, Av,band):
-    
-    Avv = color*0. + Av
-    
-    # polynomial values for FITZPATRICK & MASSA (2019) and Gaia eDR3 log g = 2,4 FeH=0 
-    if (band == 'G_BPmag'):
-        poly = models.Polynomial2D(degree=4)
-        poly._parameters = np.array([ 1.04147486e+00,  2.01708670e-02,  3.64641123e-03, -2.63700516e-04,
-        6.31474566e-05, -8.83945036e-02,  1.83825389e-02,  4.50477706e-03,
-        3.26750519e-03, -1.62928523e-02, -2.04675757e-03, -5.40740309e-03,
-        8.07038769e-04,  2.95228508e-03, -6.76541300e-04])
-        coeffs = dict((name, poly._parameters[i]) for i, name in enumerate(poly.param_names))
-        poly = models.Polynomial2D(degree=4,**coeffs)
-        k = poly(Avv,color)
- 
-               
-    if (band == 'G_RPmag'):
-        poly = models.Polynomial2D(degree=4)
-        poly._parameters = np.array([ 6.38099500e-01,  2.30574591e-03, -8.99468273e-04,  4.46199671e-04,
-        6.24722092e-05, -2.25374369e-02, -1.02043689e-02, -3.76323711e-03,
-        3.50246307e-03,  6.30231188e-03,  6.40243260e-03, -5.49766107e-03,
-       -3.10851841e-03,  3.09564948e-03, -7.33372566e-04])
-        coeffs = dict((name, poly._parameters[i]) for i, name in enumerate(poly.param_names))
-        poly = models.Polynomial2D(degree=4,**coeffs)
-        k = poly(Avv,color)
 
+COEFS_BP = np.array([ 1.04147486e+00,  2.01708670e-02,  3.64641123e-03, -2.63700516e-04,
+                      6.31474566e-05, -8.83945036e-02,  1.83825389e-02,  4.50477706e-03,
+                      3.26750519e-03, -1.62928523e-02, -2.04675757e-03, -5.40740309e-03,
+                      8.07038769e-04,  2.95228508e-03, -6.76541300e-04])
+
+COEFS_RP = np.array([ 6.38099500e-01,  2.30574591e-03, -8.99468273e-04,  4.46199671e-04,
+                      6.24722092e-05, -2.25374369e-02, -1.02043689e-02, -3.76323711e-03,
+                      3.50246307e-03,  6.30231188e-03,  6.40243260e-03, -5.49766107e-03,
+                     -3.10851841e-03,  3.09564948e-03, -7.33372566e-04])
+
+COEFS_G = np.array([ 8.20652902e-01,  2.61920418e-02,  2.68469208e-03,  9.36694336e-05,
+                    -2.52100168e-05, -1.27466265e-01,  1.93940175e-02,  1.88492527e-03,
+                    -9.17877230e-04, -1.38032911e-02,  2.02177729e-03,  7.35239495e-04,
+                    -1.19970676e-03, -5.13235046e-04,  2.08371649e-04])
+
+@nb.njit
+def calc_poly2d_deg4(x, y, c):
+    """Evaluates the 15-term degree-4 2D polynomial."""
+    x2 = x * x
+    x3 = x2 * x
+    x4 = x3 * x
     
-    if (band == 'Gmag'):
-        poly = models.Polynomial2D(degree=4)
-        poly._parameters = np.array([ 8.20652902e-01,  2.61920418e-02,  2.68469208e-03,  9.36694336e-05,
-       -2.52100168e-05, -1.27466265e-01,  1.93940175e-02,  1.88492527e-03,
-       -9.17877230e-04, -1.38032911e-02,  2.02177729e-03,  7.35239495e-04,
-       -1.19970676e-03, -5.13235046e-04,  2.08371649e-04])
-        coeffs = dict((name, poly._parameters[i]) for i, name in enumerate(poly.param_names))
-        poly = models.Polynomial2D(degree=4,**coeffs)
-        k = poly(Avv,color)
-            
-        
-    return k
+    y2 = y * y
+    y3 = y2 * y
+    y4 = y3 * y
+    
+    res = (c[0] + 
+           c[1]*x + c[2]*x2 + c[3]*x3 + c[4]*x4 + 
+           c[5]*y + c[6]*y2 + c[7]*y3 + c[8]*y4 + 
+           c[9]*x*y + c[10]*x*y2 + c[11]*x*y3 + 
+           c[12]*x2*y + c[13]*x2*y2 + 
+           c[14]*x3*y)
+    return res
+
+def gaia_ext_Hek(color, Av, band):
+
+    Avv = np.full_like(color, Av) 
+    
+    if band == 'G_BPmag':
+        return calc_poly2d_deg4(Avv, color, COEFS_BP)
+    elif band == 'G_RPmag':
+        return calc_poly2d_deg4(Avv, color, COEFS_RP)
+    elif band == 'Gmag':
+        return calc_poly2d_deg4(Avv, color, COEFS_G)
+    
+    return np.zeros_like(color)
     
 ###############################################
 # Make an observed synthetic cluster given an isochrone,
@@ -887,7 +901,126 @@ def model_cluster(age,dist,FeH,Av,bin_frac,nstars,bands,refMag,Mcut=False,error=
 # Define the log likelihood
 # theta -> vector of model parameters [age, dist, z, ebv, Rv]
 # 
-def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
+@nb.njit
+def calc_p_iso_numba(obs, mod, inv_sigma2, norm):
+    N = obs.shape[0]
+    M = mod.shape[0]
+    bands = obs.shape[1]
+    p_iso = np.empty(N)
+
+    for i in range(N):
+        max_val = -1e300
+        for j in range(M):
+            term = 0.0
+            for k in range(bands):
+                diff = obs[i, k] - mod[j, k]
+                term += -0.5 * (diff * diff) * inv_sigma2[i, k]
+            
+            exp_term = np.exp(term)
+            if exp_term > max_val:
+                max_val = exp_term
+        p_iso[i] = norm[i] * max_val
+        
+    return p_iso
+
+
+def lnlikelihoodCE(theta, obs_iso, obs_iso_er, bands, refMag, prange, weight, prior=np.array([[1.],[1.e3]]), seed=None):
+    # LOG OPTIMIZED (Numpy)
+    age, dist, FeH, Av = theta
+    bin_frac = 0.5
+    nstars = obs_iso.size
+    Mlim = obs_iso[refMag].max()
+    
+    # --- OPTIMIZER SAFETY NET ---
+    try:
+        # get synth isochrone
+        mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
+                                    refMag,error=False,Mcut=Mlim,seed=seed,
+                                    imf='chabrier',alpha=2.1, beta=-3.,gaia_ext=True)
+        
+        # Also reject if the model successfully runs but returns no stars
+        if len(mod_cluster) == 0:
+            return 1e10
+            
+    except ValueError:
+        # Catch the argmin crash from sample_from_isoc and penalize the CE algorithm
+        return 1e10 
+    # ----------------------------
+   
+    obs = np.column_stack([obs_iso[b] for b in bands])
+    obs_er = np.column_stack([obs_iso_er[b] for b in bands])
+    mod = np.column_stack([mod_cluster[b] for b in bands])
+    
+    norm = np.prod(1. / np.sqrt(2.*np.pi * obs_er**2), axis=1) 
+    inv_sigma2 = 1.0 / (obs_er**2)
+    
+    # Pure C-speed execution, zero memory allocation overhead
+    p_iso = calc_p_iso_numba(obs, mod, inv_sigma2, norm)
+
+    log_prior = np.sum(-0.5*( (theta-prior[0,:])/prior[1,:] )**2) 
+    p_iso[p_iso < 1.e-307] = 1.e-307   
+    res = -np.sum(np.log(p_iso) + np.log(weight)) + log_prior
+    
+    return res
+
+
+def lnlikelihoodCE_mathfix(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
+                   prior=[[1.],[1.e3]],seed=None):
+    
+    age, dist, FeH, Av = theta
+    bin_frac = 0.5
+
+    nstars = len(obs_iso) 
+    Mlim = obs_iso[refMag].max()
+    
+    # --- OPTIMIZER SAFETY NET ---
+    try:
+        # get synth isochrone
+        mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
+                                    refMag,error=False,Mcut=Mlim,seed=seed,
+                                    imf='chabrier',alpha=2.1, beta=-3.,gaia_ext=True)
+        
+        # Also reject if the model successfully runs but returns no stars
+        if len(mod_cluster) == 0:
+            return 1e30
+            
+    except ValueError:
+        # Catch the argmin crash from sample_from_isoc and penalize the CE algorithm
+        return 1e30 
+    # ----------------------------
+
+    # get distance of each observed star to the model isochrone
+    obs = np.array(obs_iso[bands].tolist())
+    obs_er = np.array(obs_iso_er[bands].tolist())
+    mod = np.array(mod_cluster[bands].tolist())
+    
+    p_iso = []
+    for i in range(nstars):
+        aux = np.prod(1./np.sqrt(2.*np.pi*obs_er[i,:]**2)*
+                      np.exp(-0.5*(obs[i,:]-mod)**2/obs_er[i,:]**2),axis=1)
+        p_iso.append(np.max(aux))
+
+    p_iso = np.array(p_iso) 
+    p_iso[p_iso < 1.e-307] = 1.e-307   
+    
+    res = np.log(p_iso) + np.log(weight)
+    log_likelihood = np.sum(res)
+    
+    # Calculate log_prior mathematically correctly
+    prior_arr = np.array(prior)
+    log_prior = np.sum(-0.5 * ((theta - prior_arr[0,:]) / prior_arr[1,:])**2)
+    
+    total_log_posterior = log_likelihood + log_prior
+    penalty = -total_log_posterior
+    
+    # Final check to prevent NaNs from crashing the CE optimizer
+    if np.isnan(penalty) or penalty > 1e30:
+        return 1e30
+        
+    return penalty
+
+
+def lnlikelihoodCE_ori(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
                    prior=[[1.],[1.e3]],seed=None):
     
     # generate synth cluster from input parameters
@@ -899,12 +1032,22 @@ def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
     nstars = obs_iso.size
     Mlim = obs_iso[refMag].max()
     
-    # get synth isochrone
-
-    mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
-                                refMag,error=False,Mcut=Mlim,seed=seed,
-                                imf='chabrier',alpha=2.1, beta=-3.,gaia_ext = True)
-
+    # --- OPTIMIZER SAFETY NET ---
+    try:
+        # get synth isochrone
+        mod_cluster = model_cluster(age,dist,FeH,Av,bin_frac,2000,bands,
+                                    refMag,error=False,Mcut=Mlim,seed=seed,
+                                    imf='chabrier',alpha=2.1, beta=-3.,gaia_ext=True)
+        
+        # Also reject if the model successfully runs but returns no stars
+        if len(mod_cluster) == 0:
+            return 1e30
+            
+    except ValueError:
+        # Catch the argmin crash from sample_from_isoc and penalize the CE algorithm
+        return 1e30 
+    # ----------------------------
+    
     # get distance of each observed star to the model isochrone
     obs = np.array(obs_iso[bands].tolist())
     obs_er = np.array(obs_iso_er[bands].tolist())
@@ -926,8 +1069,8 @@ def lnlikelihoodCE(theta,obs_iso,obs_iso_er,bands,refMag,prange,weight,
     res = np.log(p_iso) + np.log(weight)
     res = -np.sum(res)
     
-    #print res, p_iso.max(), p_iso.min() #'   '.join('%0.3f' % v for v in theta)
-    
+    #print ('1:',res, '2:',p_iso.max(), '3:',p_iso.min()) #'   '.join('%0.3f' % v for v in theta)
+        
     return res
 
 
