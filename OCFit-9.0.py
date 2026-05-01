@@ -38,36 +38,10 @@ import glob
 import os
 import statistics
 import shutil
+import pandas as pd
 
 warnings.filterwarnings("ignore")
-##########################################################################################
-#vc adiciona col, com o nome col_name no array
-#col_name = voce definie = string  = nome da col
-#array = arquivo lido
-#col = a coluna de valores que vc quer adicionar = valor
-#Ex:teste = add_col(catresmasers,RAICRS,'RA_ICRS') 
-def add_col(array,col,col_name):
-    col_type=(col_name, col.dtype)
-    y=np.zeros(array.shape, dtype=array.dtype.descr+[col_type])    
-    for name in array.dtype.names: y[name] = array[name]    
-    y[col_type[0]]=col    
-    return y
-##########################################################################################
-#array = obs['ag_gspphot']  == equivale ao array com os dados
-#Gmag = transforma_para_float(obs['phot_bp_mean_mag']) = exemplo de como usar
-def transforma_para_float(array):
-    # para transformar dados em formato U9 para float
-    saida = array.astype(str)
-    n_elementos = len(array)
-    for j in range(n_elementos):
-        if saida[j] == 'nan4':
-            saida[j] = 'nan'
-            saida[j] = ''
-        else:
-            saida[j] = float(saida[j])
-    saida = b = np.asarray(saida,dtype = float)
-    return saida
-##########################################################################################
+
 plt.close('all')
 
 ############################################################################
@@ -143,13 +117,17 @@ for i in range(len(files)):
     magcut = 40.
     guess = False
    
-    obs = np.genfromtxt(files[i],names=True, delimiter=';', dtype=None, missing_values='nan4',filling_values='nan',encoding='utf-8')
-
-    #stop
+    # Read the CSV.
+    df = pd.read_csv(files[i], sep=';', na_values=['nan4'], encoding='utf-8')
+    df.columns = df.columns.str.strip()
+    
+    # Convert the pandas DataFrame back to a NumPy structured array 
+    obs = df.to_records(index=False)
+    
     #remove nans para fazer os plots
-    Gmag = transforma_para_float(obs['phot_g_mean_mag'])
-    BPmag = transforma_para_float(obs['phot_bp_mean_mag'])
-    RPmag = transforma_para_float(obs['phot_rp_mean_mag'])
+    Gmag = obs['phot_g_mean_mag']
+    BPmag = obs['phot_bp_mean_mag']
+    RPmag = obs['phot_rp_mean_mag']
     
     cond1 = np.isfinite(Gmag)
     cond2 = np.isfinite(BPmag)
@@ -159,18 +137,18 @@ for i in range(len(files)):
     obs = obs[ind]
     RA = obs['ra']
     DEC = obs['dec']
-    Plx = transforma_para_float(obs['parallax'])
-    ePlx = transforma_para_float(obs['parallax_error'])
-    pmra = transforma_para_float(obs['pmra'])
-    pmde = transforma_para_float(obs['pmdec'])
-    RV =  transforma_para_float(obs['radial_velocity'])
-    erRV =  transforma_para_float(obs['radial_velocity_error'])
-    Gmag = transforma_para_float(obs['phot_g_mean_mag'])
-    BPmag = transforma_para_float(obs['phot_bp_mean_mag'])
-    RPmag = transforma_para_float(obs['phot_rp_mean_mag'])
-    Ag = transforma_para_float(obs['ag_gspphot'])
-    members = transforma_para_float(obs['probs'])
-    weight = transforma_para_float(obs['probs'])
+    Plx = obs['parallax']
+    ePlx = obs['parallax_error']
+    pmra = obs['pmra']
+    pmde = obs['pmdec']
+    RV =  obs['radial_velocity']
+    erRV =  obs['radial_velocity_error']
+    Gmag = obs['phot_g_mean_mag']
+    BPmag = obs['phot_bp_mean_mag']
+    RPmag = obs['phot_rp_mean_mag']
+    Ag = obs['ag_gspphot']
+    members = obs['probs']
+    weight = obs['probs']
     n_members = len(RA)
     
     ###########################################################################
@@ -180,12 +158,12 @@ for i in range(len(files)):
     sigmaG_0 = 0.0027553202
     sigmaGBP_0 = 0.0027901700
     sigmaGRP_0 = 0.0037793818
-    phot_g_mean_flux_error = transforma_para_float(obs['phot_g_mean_flux_error'])
-    phot_g_mean_flux = transforma_para_float(obs['phot_g_mean_flux'])
-    phot_bp_mean_flux_error = transforma_para_float(obs['phot_bp_mean_flux_error'])
-    phot_bp_mean_flux = transforma_para_float(obs['phot_bp_mean_flux'])
-    phot_rp_mean_flux_error = transforma_para_float(obs['phot_rp_mean_flux_error'])
-    phot_rp_mean_flux = transforma_para_float(obs['phot_rp_mean_flux'])
+    phot_g_mean_flux_error = obs['phot_g_mean_flux_error']
+    phot_g_mean_flux = obs['phot_g_mean_flux']
+    phot_bp_mean_flux_error = obs['phot_bp_mean_flux_error']
+    phot_bp_mean_flux = obs['phot_bp_mean_flux']
+    phot_rp_mean_flux_error = obs['phot_rp_mean_flux_error']
+    phot_rp_mean_flux = obs['phot_rp_mean_flux']
     
     eGmag = np.sqrt((-2.5/np.log(10)*phot_g_mean_flux_error/phot_g_mean_flux)**2 + sigmaG_0**2)
     eBPmag = np.sqrt((-2.5/np.log(10)*phot_bp_mean_flux_error/phot_bp_mean_flux)**2 + sigmaGBP_0**2)
