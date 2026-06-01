@@ -71,6 +71,11 @@ netopil = np.load(base_dir+'Netopil16-Metalicity-table.npy')
 netopil['Cluster'] = np.array([x.replace(" ", "_") for x in netopil['Cluster']])
 
 ############################################################################
+# Get Paunzen Av data from disk
+df = pd.read_csv(base_dir+'crossmatched_reddening_with_Av.csv', sep=';', na_values=['nan4'], encoding='utf-8')
+Av_Paunzen = df.to_records(index=False)
+
+############################################################################
 # Check which clusters have been fit already
 catlist = np.genfromtxt(dirout+'log-results.txt',dtype=None,delimiter=';',names=True)
 catlist['name'] = np.array([x.strip() for x in catlist['name']])
@@ -252,27 +257,36 @@ for i in range(len(files)):
     verbosefile.write(str(member_cut)+'\n')
          
     ###########################################################################  
-    # para guess Av: usando Ag do catalogo GAIA DR3 usando AG ≈ 0.859⋅AV
-    #remove nans para fazer os plots
+    # Av guess: Combine Ag from GAIA DR3 (usando AG ≈ 0.859⋅AV) and values from 
+    #           Paunzen (2026) computing their precision-weighted average. 
+
+    # Calculate mean Ag from stars
     cond1_Ag = np.isfinite(Ag)
-    cond_member = weight > 0.50
-    
-    ind_Ag = np.where(cond1_Ag&cond_member)
-    
-    Agmean = np.mean(Ag[ind_Ag])
-    Agstd = np.std(Ag[ind_Ag])
+    cond_member = weight > 0.50    
+    ind_Ag = np.where(cond1_Ag&cond_member)    
+    Agmean = np.mean(Ag[ind_Ag]/0.859)
+    Agstd = np.std(Ag[ind_Ag]/0.859)
     NAg = len(ind_Ag[0])
-    Av_guess = Agmean/0.859
-    Av_guess_sig = 0.3*Av_guess
+    Ag_guess = Agmean
+    Ag_guess_sig = Agstd
     
-    print('From Gaia AG ≈ 0.859⋅AV: Av = {:.3f} +/- {:.3f} mag'.format(Av_guess,Av_guess_sig))
-    verbosefile.write('From Gaia AG ≈ 0.859⋅AV: Av =  {:.3f} +/- {:.3f} mag \n'.format(Av_guess,Av_guess_sig))
+    # Combine with values from Paunzen (2026)
+    ind_paunzen = np.where(Av_Paunzen['name_alessi'] == name)[0][0]
+    Av_guess = (Av_Paunzen['A_V_calc'][ind_paunzen]*Ag_guess_sig**2 + 
+                Ag_guess*Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) / (Ag_guess_sig**2+Av_Paunzen['s_A_V_calc'][ind_paunzen]**2)
+    Av_guess_sig = np.sqrt( (Ag_guess_sig**2 * Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) / (Ag_guess_sig**2+Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) )
+    
+    print('From Gaia AG ≈ 0.859⋅AV: Av = {:.3f} +/- {:.3f} mag'.format(Ag_guess,Ag_guess_sig))
+    verbosefile.write('From Gaia AG ≈ 0.859⋅AV: Av =  {:.3f} +/- {:.3f} mag \n'.format(Ag_guess,Ag_guess_sig))
+    
+    print('From Paunzen (2026) : Av = {:.3f} +/- {:.3f} mag'.format(Av_Paunzen['A_V_calc'][ind_paunzen],Av_Paunzen['s_A_V_calc'][ind_paunzen]))
+    verbosefile.write('From Paunzen (2026) : Av = {:.3f} +/- {:.3f} mag'.format(Av_Paunzen['A_V_calc'][ind_paunzen],Av_Paunzen['s_A_V_calc'][ind_paunzen]))
     
     if (~np.isfinite(Av_guess)):
         print('no data Ag from Gaia')
         verbosefile.write('no data Ag from Gaia...')
-        # vou usar a estimativa 1 magnitudes/kpc
-        Av_guess = 1*guess_dist
+        # if there is no valid value use 1 mag/kpc with flat prior
+        Av_guess = 1.0*guess_dist
         Av_guess_sig = 1.0e3
     
     ###########################################################################

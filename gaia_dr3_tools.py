@@ -639,8 +639,8 @@ def fit_iso_GAIA(obs_file,verbosefile,guess=False,magcut=17.0, member_cut=0.5, o
 
     # define CE tweak parameters
     nruns = 3
-    itmax = 50#100    
-    sample = 150#200
+    itmax = 200    
+    sample = 300
 
     band = 0.15
     alpha = 0.4
