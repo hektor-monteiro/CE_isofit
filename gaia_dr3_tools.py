@@ -25,8 +25,6 @@ from astropy import wcs
 from astropy.coordinates import Angle
 from oc_tools_padova_dr3 import *
 from matplotlib.offsetbox import AnchoredOffsetbox, AuxTransformBox, VPacker,TextArea, DrawingArea
-import corner
-import emcee
 from astropy.stats import mad_std
 from scipy.optimize import least_squares,minimize
 from math import ceil
