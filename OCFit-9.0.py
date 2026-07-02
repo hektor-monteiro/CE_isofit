@@ -221,11 +221,11 @@ for i in range(len(files)):
     dist_posterior_y = np.array(dist_posterior_y)
     dist_posterior_y[dist_posterior_y<0.]=0
     cum = np.cumsum(dist_posterior_y)/np.sum(dist_posterior_y)
-    #    conf_int = np.where((cum > 0.16)&(cum<0.84))[0]
-    conf_int = np.where((cum > 0.16)&(cum<0.5))[0]
+    conf_int = np.where((cum > 0.16)&(cum<0.84))[0]
+    #conf_int = np.where((cum > 0.16)&(cum<0.5))[0]
     try:
-    #        dist_guess_sig = (dist_posterior_x[conf_int[-1]] - dist_posterior_x[conf_int[0]])/2.
-        dist_guess_sig = (dist_posterior_x[conf_int[-1]] - dist_posterior_x[conf_int[0]])
+        dist_guess_sig = (dist_posterior_x[conf_int[-1]] - dist_posterior_x[conf_int[0]])/2.
+        #dist_guess_sig = (dist_posterior_x[conf_int[-1]] - dist_posterior_x[conf_int[0]])
     
     except:
         print('using rough distance interval estimate...')
@@ -274,7 +274,7 @@ for i in range(len(files)):
     ind_paunzen = np.where(Av_Paunzen['name_alessi'] == name)[0][0]
     Av_guess = (Av_Paunzen['A_V_calc'][ind_paunzen]*Ag_guess_sig**2 + 
                 Ag_guess*Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) / (Ag_guess_sig**2+Av_Paunzen['s_A_V_calc'][ind_paunzen]**2)
-    Av_guess_sig = np.sqrt( (Ag_guess_sig**2 * Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) / (Ag_guess_sig**2+Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) )
+    Av_guess_sig = 3 * np.sqrt( (Ag_guess_sig**2 * Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) / (Ag_guess_sig**2+Av_Paunzen['s_A_V_calc'][ind_paunzen]**2) )
     
     print('From Gaia AG ≈ 0.859⋅AV: Av = {:.3f} +/- {:.3f} mag'.format(Ag_guess,Ag_guess_sig))
     verbosefile.write('From Gaia AG ≈ 0.859⋅AV: Av =  {:.3f} +/- {:.3f} mag \n'.format(Ag_guess,Ag_guess_sig))
@@ -282,6 +282,9 @@ for i in range(len(files)):
     print('From Paunzen (2026) : Av = {:.3f} +/- {:.3f} mag'.format(Av_Paunzen['A_V_calc'][ind_paunzen],Av_Paunzen['s_A_V_calc'][ind_paunzen]))
     verbosefile.write('From Paunzen (2026) : Av = {:.3f} +/- {:.3f} mag'.format(Av_Paunzen['A_V_calc'][ind_paunzen],Av_Paunzen['s_A_V_calc'][ind_paunzen]))
     
+    print('Using Harmonic Average for Av in prior...')
+    verbosefile.write('Using Harmonic Average for Av in prior...\n')
+
     if (~np.isfinite(Av_guess)):
         print('no data Ag from Gaia')
         verbosefile.write('no data Ag from Gaia...')
