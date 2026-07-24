@@ -16,10 +16,10 @@ refMag = 'Gmag'
 seed = 42
 
 print("Generating first cluster...")
-res1 = oc.model_cluster(age, dist, FeH, Av, bin_frac, nstars, bands, refMag, seed=seed)
+res1 = oc.model_cluster(age, dist, FeH, Av, bin_frac, nstars, bands, refMag, seed=seed, error=False)
 
 print("Generating second cluster...")
-res2 = oc.model_cluster(age, dist, FeH, Av, bin_frac, nstars, bands, refMag, seed=seed)
+res2 = oc.model_cluster(age, dist, FeH, Av, bin_frac, nstars, bands, refMag, seed=seed, error=False)
 
 print("Comparing outputs...")
 # check equality
