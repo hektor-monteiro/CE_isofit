@@ -1,0 +1,14 @@
+numpy
+scipy
+pandas
+matplotlib
+astropy
+astroquery
+numba
+scikit-learn
+emcee
+corner
+mkl
+Sphinx
+sphinx-rtd-theme
+myst-parser
