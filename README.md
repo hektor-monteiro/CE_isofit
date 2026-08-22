@@ -5,7 +5,7 @@ CE_IsoFit is a pipeline designed for fitting isochrones to open cluster data fro
 
 ## Architecture
 The codebase is structured around the following core files:
-- **`OCFit-9.0.py`**: The main driver script. It iterates over cluster data files, preprocesses the data, sets up priors (utilizing external metallicity tables or galactic gradients), runs the CE optimization loop, and generates comprehensive logs and plots.
+- **`ocfit_main.py`**: The main driver script. It iterates over cluster data files, preprocesses the data, sets up priors (utilizing external metallicity tables or galactic gradients), runs the CE optimization loop, and generates comprehensive logs and plots.
 - **`oc_tools_padova_dr3.py`**: A domain-specific library handling:
   - Loading and interpolating isochrone grids (Padova/Parsec).
   - Generating synthetic clusters (sampling IMF, adding binarity, and simulating photometric errors).
@@ -48,7 +48,7 @@ To successfully run the code, the repository must be structured as follows:
 │   └── log-results.txt              # Required starting log file model (used to track fitted clusters)
 ├── APOGEE-Metalicity-table.npy      # External prior data table
 ├── Netopil16-Metalicity-table.npy   # External prior data table
-├── OCFit-9.0.py                     # Main execution script
+├── ocfit_main.py                    # Main execution script
 ├── oc_tools_padova_dr3.py           # Domain logic library
 └── gaia_dr3_tools.py                # Statistics and optimization library
 ```
@@ -66,7 +66,7 @@ The `dados/` folder is expected to contain CSV files for each target open cluste
 3. Execute the main script from the root of the repository:
 
 ```bash
-python OCFit-9.0.py
+python ocfit_main.py
 ```
 
 The script will automatically check `log-results.txt` to skip already processed clusters. It creates a dedicated subdirectory for each processed cluster inside `results/`, containing a verbose output file (`verbose-output.dat`) and a generated Color-Magnitude Diagram (CMD) plot (`<cluster_name>.png`).
